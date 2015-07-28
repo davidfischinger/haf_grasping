@@ -1,0 +1,4 @@
+int32 grasp_search_size_x
+int32 grasp_search_size_y
+---
+bool result

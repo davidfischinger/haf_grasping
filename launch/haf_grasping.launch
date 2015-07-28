@@ -1,0 +1,9 @@
+<launch>
+	<node name="calc_grasppoints_svm_action_server" pkg="haf_grasping" type="calc_grasppoints_action_server">        
+    </node>
+</launch>
+
+
+
+
+

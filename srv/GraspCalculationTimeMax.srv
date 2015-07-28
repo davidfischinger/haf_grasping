@@ -1,0 +1,3 @@
+duration max_calculation_time			# maximal calculation time before grasp result is returned
+---
+bool result

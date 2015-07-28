@@ -1,0 +1,8 @@
+# Define the input for grasp calculation: a point cloud
+haf_grasping/GraspInput graspinput
+---
+# Define the result, if succeeded: defines grasp for gripper, tbd
+std_msgs/String result
+---
+# Define a feedback message
+std_msgs/String feedback

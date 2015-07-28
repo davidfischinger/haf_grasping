@@ -1,0 +1,152 @@
+==========================================================
+==               PACKAGE: haf_grasping   	        ==
+==========================================================
+
+Author:  David Fischinger, Vienna University of Technology
+Version: 1.0
+Date:	 15.5.2015
+
+HAF_GRASPING
+is calculating grasp points for unknown and known objects represented by the surface point cloud data.
+For scientific foundation see:
+D. Fischinger, M. Vincze: "Learning Grasps for Unknown Objects in Cluttered Scenes", IEEE International Conference on Robotics and Automation (ICRA), 2013.
+<a href="files/ICRA2013.pdf">[pdf]</a>
+D. Fischinger, A. Weiss, M. Vincze: "Learning Grasps with Topographic Features", The International Journal of Robotics Research.
+
+
+In a first step the point cloud is read from a ROS topic and a heightsgrid is created.
+For each 14x14 square of the hightsgrid a featurevector is created. 
+Using SVM with an existing model file, it is predicted if the center of the square is a good 
+grasping point. For good grasping points the coordinates and the direction of the approach vectors
+are published.
+
+
+DOWNLOAD CODE
+
+>> git 
+
+
+HOW TO USE HAF_GRASPING - GET STARTED
+
+Start calculation server (does the work), haf_client (small programming incl. class that shows how to use haf_grasping) and a visualization in rviz:
+
+>> roslaunch haf_grasping haf_grasping_all.launch
+
+Publish the path of a point cloud to calculate grasp points on this object with the gripper approaching direction along the z-axis:
+
+>> rostopic pub /haf_grasping/input_pcd_rcs_path std_msgs/String "$(rospack find haf_grasping)/data/pcd2.pcd" -1
+
+(Alternatively, publish a point cloud at the ros topic:  /haf_grasping/depth_registered/single_cloud/points_in_lcs)
+
+
+EXPLANATION FOR THE RVIZ VISUALIZATION
+
+RVIZ will now visualize the point cloud with corresponding frame (blue indicates the z-axis). 
+Bigger rectangle: indicates the area where heights can be used for grasp calculation
+Inner rectangle:  defines the area where grasps (grasp centers) are searched.
+Long red line:    indicates the closing direction (for a two finger gripper)
+Red/green spots:  indicate the positions where grasps are really tested for the current gripper roll (ignoring points where no calculation is needed, e.g. no data there)
+Green bars:       indicate where possible grasps were found. The height of the bars indicate an grasp evaluation score (the higher the better)
+Black arrow:      indicates the best grasp position found and the approching direction (for a parallel two finger gripper)
+
+
+
+HAF-GRASPING CLIENT - CODE EXPLAINDED
+
+In calc_grasppoints_action_client.cpp we subscribe to a point_cloud topic and start the following callback when a point cloud comes in:
+
+== code start ==
+
+//get goal (input point cloud) for grasp calculation, send it to grasp action server and receive result
+void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr& pc_in)
+{
+	ROS_INFO("\nFrom calc_grasppoints_action_client: point cloud received");
+
+	// create the action client
+	// true causes the client to spin its own thread
+	actionlib::SimpleActionClient<haf_grasping::CalcGraspPointsServerAction> ac("calc_grasppoints_svm_action_server", true);
+
+	ROS_INFO("Waiting for action server to start.");
+	// wait for the action server to start
+	ac.waitForServer(); //will wait for infinite time
+
+	ROS_INFO("Action server started, sending goal.");
+	// send a goal to the action
+	haf_grasping::CalcGraspPointsServerGoal goal;
+	goal.graspinput.input_pc = *pc_in;
+
+	goal.graspinput.grasp_area_center = this->graspsearchcenter;
+
+	// set size of grasp search area
+	goal.graspinput.grasp_area_length_x = this->grasp_search_size_x+14;
+	goal.graspinput.grasp_area_length_y = this->grasp_search_size_y+14;
+
+	// set max grasp calculation time
+	goal.graspinput.max_calculation_time = this->grasp_calculation_time_max;
+
+	//send goal
+	ac.sendGoal(goal);
+
+	//wait for the action to return
+	bool finished_before_timeout = ac.waitForResult(ros::Duration(50.0));
+
+	if (finished_before_timeout)
+	{
+	    actionlib::SimpleClientGoalState state = ac.getState();
+	    boost::shared_ptr<const haf_grasping::CalcGraspPointsServerResult_<std::allocator<void> > > result = ac.getResult();
+	    ROS_INFO("Result: %s", (*(result)).result.data.c_str());
+	    ROS_INFO("Action finished: %s",state.toString().c_str());
+	}
+	else
+	    ROS_INFO("Action did not finish before the time out.");
+}
+
+== code end ==
+
+
+PARAMETER SETTING
+
+There are a number of parameters that can be set (directly or via a service call). Set grasp search center (in m) to (x=0.1,y=0):
+
+Grasp_center: the x-,y-position, that is the center of the area where grasps are searched.
+Service call to change it:
+
+>> rosservice call /haf_grasping/set_grasp_center "graspsearchcenter:
+  x: 0.10
+  y: 0.0
+  z: 0.0" 
+
+Grasp_area_size: the size of the area were grasps should be detected. Set rectangle to 16x10 centimeter:
+
+>> rosservice call /haf_grasping/set_grasp_search_area_size "grasp_search_size_x: 16
+grasp_search_size_y: 10"
+
+Grasp_calculation_time_max: maximal time in seconds until a grasp has to be returned. Set max timt to 3 sec:
+
+>> rosservice call /haf_grasping/set_grasp_calculation_time_max "max_calculation_time:
+  secs: 3
+  nsecs: 0" 
+
+
+
+
+== Input == 
+
+A point cloud from objects 
+
+
+== Output ==
+
+Grasp points and approach vectors which are detected using Support Vector Machines
+(at the beginning the approach vectors are parallel to the z-axis) 
+
+
+
+== LIBSVM ==
+
+We have included LIBSVM to work as our classifier (go to folder libsvm-3.12 and type "make" after checking out):
+
+Chih-Chung Chang and Chih-Jen Lin, LIBSVM : a library for support
+vector machines. ACM Transactions on Intelligent Systems and
+Technology, 2:27:1--27:27, 2011. Software available at
+http://www.csie.ntu.edu.tw/~cjlin/libsvm

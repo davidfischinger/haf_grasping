@@ -1,0 +1,21 @@
+<launch>
+	<!-- start haf_grasp calculation SERVER -->
+	<node 	name="calc_grasppoints_svm_action_server" 
+		pkg="haf_grasping" 
+		type="calc_grasppoints_action_server">        
+    	</node>
+
+	<!-- start haf_grasp calculation client -->
+	<node 	name="calc_grasppoints_svm_action_client" 
+		pkg="haf_grasping" 
+		type="calc_grasppoints_action_client">        
+    	</node>
+
+	<!-- start rviz for visualization -->
+	<include file="$(find haf_grasping)/launch/rviz.launch"/>	
+</launch>
+
+
+
+
+
