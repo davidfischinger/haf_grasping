@@ -175,6 +175,7 @@ public:
 	    as_(nh_, name, boost::bind(&CCalc_Grasppoints::read_pc_cb/*executeCB*/, this, _1), false),
 	    action_name_(name)
 	{
+		sommer
 		//this->pc_sub = nh_.subscribe("/SS/points2_object_in_rcs",1, &CCalc_Grasppoints::read_pc_cb, this);	//callback for reading point cloud of box content
 		//this->pubGraspPoints = nh_.advertise<std_msgs::String>("/SVM/grasp_hypothesis", 1);
 		this->pubGraspPointsEval = nh_.advertise<std_msgs::String>("/haf_grasping/grasp_hypothesis_with_eval", 1);
