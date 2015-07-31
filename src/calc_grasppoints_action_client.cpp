@@ -19,6 +19,7 @@
 #include <ros/package.h>
 #include "sensor_msgs/PointCloud2.h"
 #include <geometry_msgs/Point.h>
+#include <geometry_msgs/Vector3.h>
 //actionlib
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
@@ -48,6 +49,7 @@ public:
 	ros::ServiceServer srv_set_grasp_search_area_size;	// service to set size of rectangle where grasps are searched
 	ros::ServiceServer srv_set_grasp_calculation_time_max;	// service to set maximal grasp calculation time (sec) before result is returned
 	geometry_msgs::Point graspsearchcenter;				// center for searching for grasps
+	geometry_msgs::Vector3 approach_vector;				// defines the direction from where a grasp should be executed
 	int grasp_search_size_x;		// the size (x direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
 	int grasp_search_size_y;		// the size (y direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
 	int max_grasp_search_size_x;	// x-limit for grasp search area size
@@ -65,6 +67,10 @@ public:
 		this->graspsearchcenter.x = 0.0;
 		this->graspsearchcenter.y = 0.0;
 		this->graspsearchcenter.z = 0.0;
+		//define grasp approach direction
+		this->approach_vector.x = 0.0;
+		this->approach_vector.y = 0.0;
+		this->approach_vector.z = 1.0;
 		//define size of grasp search rectangle
 		this->grasp_search_size_x = 32;					//max. limit 32
 		this->grasp_search_size_y = 44;					//max. limit 44
@@ -123,6 +129,11 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 	goal.graspinput.input_pc = *pc_in;
 
 	goal.graspinput.grasp_area_center = this->graspsearchcenter;
+
+	//set grasp approach vector
+	goal.graspinput.approach_vector.x = this->approach_vector.x;
+	goal.graspinput.approach_vector.y = this->approach_vector.y;
+	goal.graspinput.approach_vector.z = this->approach_vector.z;
 
 	// set size of grasp search area
 	goal.graspinput.grasp_area_length_x = this->grasp_search_size_x+14;

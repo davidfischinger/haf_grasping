@@ -76,6 +76,7 @@
 #include "ros/package.h"
 #include "std_msgs/String.h"
 #include "sensor_msgs/PointCloud2.h"
+#include "geometry_msgs/Vector3.h"
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 //Actionlib
@@ -131,6 +132,7 @@ public:
 	bool box_position_set;
 	int grasp_search_area_size_x_dir;	// defines the size (x-direction) of the rectangle where grasps are searched
 	int grasp_search_area_size_y_dir;   // defines the size (y-direction) of the rectangle where grasps are searched
+	geometry_msgs::Vector3 approach_vector;	// defines approach direction for grasp
 	float max_duration_for_grasp_calc;	//maximal time (in seconds) before a result is returned
  	float heightsgridroll[ROLL_MAX_DEGREE/ROLL_STEPS_DEGREE][TILT_STEPS][HEIGHT][WIDTH];
  	float integralimageroll[ROLL_MAX_DEGREE/ROLL_STEPS_DEGREE][TILT_STEPS][HEIGHT+1][WIDTH+1];
@@ -175,7 +177,6 @@ public:
 	    as_(nh_, name, boost::bind(&CCalc_Grasppoints::read_pc_cb/*executeCB*/, this, _1), false),
 	    action_name_(name)
 	{
-		sommer
 		//this->pc_sub = nh_.subscribe("/SS/points2_object_in_rcs",1, &CCalc_Grasppoints::read_pc_cb, this);	//callback for reading point cloud of box content
 		//this->pubGraspPoints = nh_.advertise<std_msgs::String>("/SVM/grasp_hypothesis", 1);
 		this->pubGraspPointsEval = nh_.advertise<std_msgs::String>("/haf_grasping/grasp_hypothesis_with_eval", 1);
@@ -190,6 +191,9 @@ public:
 		this->box_center_y = -0.49;
 		this->grasp_search_area_size_x_dir = 32;
 		this->grasp_search_area_size_y_dir = 44;
+		this->approach_vector.x = 0;
+		this->approach_vector.y = 0;
+		this->approach_vector.z = 1;
 		this->max_duration_for_grasp_calc = 50; 	//max calculation time before restult is returned (in sec)
 		outputpath_full = "/tmp/features.txt";
 		return_only_best_gp = true;
@@ -247,6 +251,9 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	// TODO  missing error handling and setting of min and max limits
 	this->grasp_search_area_size_x_dir = goal->graspinput.grasp_area_length_x;
 	this->grasp_search_area_size_y_dir = goal->graspinput.grasp_area_length_y;
+
+	//define grasp approach vector
+	this->approach_vector = goal->graspinput.approach_vector;
 
 	// set maximal calculation time
 	this->max_duration_for_grasp_calc = (float) goal->graspinput.max_calculation_time.toSec();
@@ -409,7 +416,7 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	if (this->visualization)
 	{
 		cout << "not publish transformed point cloud! \n";
-		//this->pubTransformedPCROS.publish(pcl_cloud_transformed); df 15.4.2015
+		this->pubTransformedPCROS.publish(pcl_cloud_transformed); // df 15.4.2015
 	}
 
 	//set heightsgridroll to -1.0 at each position
