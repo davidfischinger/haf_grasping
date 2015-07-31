@@ -32,7 +32,6 @@
   <!--build_depend>opencv2</build_depend-->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>message_generation</build_depend>
-  <build_depend>pcl</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
