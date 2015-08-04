@@ -19,7 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   tf
   nav_msgs
-
   pcl_msgs    
 )
 
@@ -101,7 +100,11 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES haf_grasping
-  CATKIN_DEPENDS actionlib_msgs std_msgs geometry_msgs
+  CATKIN_DEPENDS 
+	actionlib_msgs 
+	std_msgs 
+	geometry_msgs
+	pcl_conversions
 #  DEPENDS system_lib
 )
 
