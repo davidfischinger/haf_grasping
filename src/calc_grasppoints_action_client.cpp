@@ -29,6 +29,7 @@
 #include <haf_grasping/GraspSearchCenter.h>
 #include <haf_grasping/GraspSearchRectangleSize.h>
 #include <haf_grasping/GraspCalculationTimeMax.h>
+#include <haf_grasping/GraspApproachVector.h>
 // for reading pcd file
 #include <iostream>
 #include <pcl/io/pcd_io.h>
@@ -48,6 +49,7 @@ public:
 	ros::ServiceServer srv_set_grasp_center;			// service to set new grasp center (center of rectangles where grasps are searched for)
 	ros::ServiceServer srv_set_grasp_search_area_size;	// service to set size of rectangle where grasps are searched
 	ros::ServiceServer srv_set_grasp_calculation_time_max;	// service to set maximal grasp calculation time (sec) before result is returned
+	ros::ServiceServer srv_set_approach_vector;			// service to set approach vector for grasping (only direction hand is approaching, not roll angle)
 	geometry_msgs::Point graspsearchcenter;				// center for searching for grasps
 	geometry_msgs::Vector3 approach_vector;				// defines the direction from where a grasp should be executed
 	int grasp_search_size_x;		// the size (x direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
@@ -61,6 +63,8 @@ public:
 	bool set_grasp_center(haf_grasping::GraspSearchCenter::Request &req, haf_grasping::GraspSearchCenter::Response &res);
 	bool set_grasp_search_area_size(haf_grasping::GraspSearchRectangleSize::Request &req, haf_grasping::GraspSearchRectangleSize::Response &res);
 	bool set_grasp_calculation_time_max(haf_grasping::GraspCalculationTimeMax::Request &req, haf_grasping::GraspCalculationTimeMax::Response &res);
+	bool set_approach_vector(haf_grasping::GraspApproachVector::Request &req, haf_grasping::GraspApproachVector::Response &res);
+
 	CCalcGrasppointsClient(ros::NodeHandle nh_)
 	{
 		//define center of grasp search rectangle
@@ -84,6 +88,8 @@ public:
 		this->srv_set_grasp_center = nh_.advertiseService("/haf_grasping/set_grasp_center", &CCalcGrasppointsClient::set_grasp_center,this);
 		this->srv_set_grasp_search_area_size = nh_.advertiseService("/haf_grasping/set_grasp_search_area_size", &CCalcGrasppointsClient::set_grasp_search_area_size,this);
 		this->srv_set_grasp_calculation_time_max = nh_.advertiseService("/haf_grasping/set_grasp_calculation_time_max", &CCalcGrasppointsClient::set_grasp_calculation_time_max,this);
+		this->srv_set_approach_vector = nh_.advertiseService("/haf_grasping/set_approach_vector", &CCalcGrasppointsClient::set_approach_vector, this);
+
 	}
 };
 
@@ -131,9 +137,9 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 	goal.graspinput.grasp_area_center = this->graspsearchcenter;
 
 	//set grasp approach vector
-	goal.graspinput.approach_vector.x = this->approach_vector.x;
-	goal.graspinput.approach_vector.y = this->approach_vector.y;
-	goal.graspinput.approach_vector.z = this->approach_vector.z;
+	goal.graspinput.approach_vector = this->approach_vector;
+	//goal.graspinput.approach_vector.y = this->approach_vector.y;
+	//goal.graspinput.approach_vector.z = this->approach_vector.z;
 
 	// set size of grasp search area
 	goal.graspinput.grasp_area_length_x = this->grasp_search_size_x+14;
@@ -213,7 +219,16 @@ bool CCalcGrasppointsClient::set_grasp_calculation_time_max(haf_grasping::GraspC
 	return res.result;
 }
 
-
+//set approach vector for approaching the object with gripper
+bool CCalcGrasppointsClient::set_approach_vector(haf_grasping::GraspApproachVector::Request &req, haf_grasping::GraspApproachVector::Response &res)
+{
+	//set grasp approach vector
+	this->approach_vector = req.approach_vector;
+	ROS_INFO("Set approach vector to: [%f,%f,%f]", this->approach_vector.x,this->approach_vector.y,this->approach_vector.z);
+	res.result = true;
+	ROS_INFO("sending back response: [%d]", (int)res.result);
+	return res.result;
+}
 
 
 int main (int argc, char **argv)

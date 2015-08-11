@@ -375,37 +375,84 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	int nr_rows = HEIGHT, nr_cols = WIDTH;
 	float r_col_m = (0.5 * (float)nr_cols)/100.0;	//"Matrix radius" in meter for cols
 	float r_row_m = (0.5 * (float)nr_rows)/100.0;	//"Matrix radius" in meter for rows
+	float trans_z_after_pc_transform = 0.14;
+	float rot_about_z;		//rotation needed about z-axis to align y-axis (old cs) with orthoganal projection of new z-axis on x-y-plane (rad)
+	float rot_about_x = 0;  //rotation needed to align z axis old with z-axis new after rot_about_z was executed (this way old x-axis keeps direction in x-y-plane) (rad)
 	pcl::PointXYZ pnt;  		//point for loop
+	pcl::PointXYZ *pnt_new_orig = new pcl::PointXYZ(0,0.025,-0.14);	//point in new coordinate system (used for arbitrary AV) that is transitioned to (old) origin as first transform step
+	pcl::PointXYZ *av = new pcl::PointXYZ(0,0,-1);	//approach vector (default would be (0,0,1) because we define AV in a way that it is equal to new z-axis for grasp calculation
 
-	Eigen::Matrix4f mat_sh_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from center to origin
+
+	av->x = this->approach_vector.x;
+	av->y = this->approach_vector.y;
+	av->z = this->approach_vector.z;
+	cout <<  "\nApproach vector: [" << av->x << "," << av->y << "," << av->z << "]" << endl;
+
+	Eigen::Matrix4f mat_sh_to_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from center to origin
 	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc and then shifts pc back to box center
 	Eigen::Matrix4f mat_tilt = Eigen::Matrix4f::Identity(); //matrix which tilts pc  NEW
 	Eigen::Matrix4f mat_sh_from_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from origin to basket center
 	Eigen::Matrix4f mat_transform = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about box center)
 
-	mat_sh_orig(0,3) = -this->box_center_x;  //shift x value
-	mat_sh_orig(1,3) = -this->box_center_y;	 //shift y-value
-	mat_sh_from_orig(0,3) = this->box_center_x;
-	mat_sh_from_orig(1,3) = this->box_center_y;
+	Eigen::Matrix4f mat_rot_z_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about z-axis)
+	Eigen::Matrix4f mat_rot_y_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about y-axis)
+	Eigen::Matrix4f mat_rot_x_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about x-axis)
 
 
+	mat_sh_to_orig(0,3) = pnt_new_orig->x; //-this->box_center_x;  //shift x value
+	mat_sh_to_orig(1,3) = pnt_new_orig->y; //-this->box_center_y;	 //shift y-value
+	mat_sh_to_orig(2,3) = pnt_new_orig->z; //-this->box_center_y;	 //shift y-value
+	mat_sh_from_orig(0,3) =  0; //this->box_center_x;
+	mat_sh_from_orig(1,3) =  0; //this->box_center_y;
+	mat_sh_from_orig(2,3) =  trans_z_after_pc_transform; //this->box_center_y;
+
+	if (av->y == 0 and av->x == 0){	//if av->y = av->x = 0
+		rot_about_z = 0;
+		if (av->z >= 0) {
+			rot_about_x = 0;	//grasp from top
+		} else {
+			rot_about_x = PI;	//grasp from upside down (in practice hardly relevant)
+		}
+	} else {	//av->y <> 0 or = av->x <> 0
+		rot_about_z = 90*PI/180.0 - atan2(av->y, av->x);	// av->y, av->x not both 0
+		rot_about_x = 90*PI/180.0 - atan2( av->z, sqrt(av->y*av->y + av->x*av->x) );
+	}
+
+	cout << "rot_about_z: " << rot_about_z << "\nav->y: " << av->y << "\nav->x: " << av->x << endl;
+	cout << "rot_about_x: " << rot_about_x << "\nav->z: " << av->z << "\nav->y: " << av->y << endl;
 
 	//define matrices s.t. transformation matrix can be calculated for point cloud (=> roll and tilt are simulated)
 
-	//next 5 lines could be outside tilt-loop
-	float angle = roll*ROLL_STEPS_DEGREE*PI/180 + this->boxrot_angle_init;	//angle for roll
+	//define rotation about z-axis (for roll loop):
+	float angle = roll*ROLL_STEPS_DEGREE*PI/180;//roll*ROLL_STEPS_DEGREE*PI/180 + this->boxrot_angle_init;	//angle for roll
 	mat_rot(0,0) = cos(angle);
 	mat_rot(0,1) = -sin(angle);
 	mat_rot(1,0) = sin(angle);
 	mat_rot(1,1) = cos(angle);
 
-	float beta = -tilt*TILT_STEPS_DEGREE*PI/180; //angle for tilt in Rad
-	mat_tilt(0,0) = cos(beta);
-	mat_tilt(0,2) = -sin(beta);
-	mat_tilt(2,0) = sin(beta);
-	mat_tilt(2,2) = cos(beta);
+	//define rotation about z-axis:
+	mat_rot_z_axis(0,0) = cos(rot_about_z);
+	mat_rot_z_axis(0,1) = -sin(rot_about_z);
+	mat_rot_z_axis(1,0) = sin(rot_about_z);
+	mat_rot_z_axis(1,1) = cos(rot_about_z);
 
-	mat_transform = mat_sh_from_orig*mat_tilt*mat_rot*mat_sh_orig;  //define transformation matrix mat_transform
+	//define rotation about y-axis	[not used]
+	//float beta = 45*PI/180;//-tilt*TILT_STEPS_DEGREE*PI/180; //angle for tilt in Rad
+	/*mat_rot_y_axis(0,0) = cos(beta);
+	mat_rot_y_axis(0,2) = -sin(beta);
+	mat_rot_y_axis(2,0) = sin(beta);
+	mat_rot_y_axis(2,2) = cos(beta);
+	*/
+
+	//define rotation about x-axis
+	mat_rot_x_axis(1,1) = cos(rot_about_x);
+	mat_rot_x_axis(1,2) = -sin(rot_about_x);
+	mat_rot_x_axis(2,1) = sin(rot_about_x);
+	mat_rot_x_axis(2,2) = cos(rot_about_x);
+
+	//mat_transform = mat_sh_from_orig*mat_tilt*mat_rot*mat_sh_orig;  //define transformation matrix mat_transform
+	// transforms pc in a way that the old coordinate system is transformed to the new one by rotation about first: z-axis, second (new) x-axis
+	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
 
 	pcl::copyPointCloud(pcl_cloud_in, pcl_cloud_transformed);	// copy notwendig?? pointer/nicht pointerzeug richtig???
 	pcl::transformPointCloud(pcl_cloud_in, pcl_cloud_transformed, mat_transform);  //transform original point cloud
@@ -415,7 +462,7 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	//publish transformed point cloud:
 	if (this->visualization)
 	{
-		cout << "not publish transformed point cloud! \n";
+		cout << "publish transformed point cloud! \n";
 		this->pubTransformedPCROS.publish(pcl_cloud_transformed); // df 15.4.2015
 	}
 
