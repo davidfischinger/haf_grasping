@@ -138,8 +138,6 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 
 	//set grasp approach vector
 	goal.graspinput.approach_vector = this->approach_vector;
-	//goal.graspinput.approach_vector.y = this->approach_vector.y;
-	//goal.graspinput.approach_vector.z = this->approach_vector.z;
 
 	// set size of grasp search area
 	goal.graspinput.grasp_area_length_x = this->grasp_search_size_x+14;
@@ -173,7 +171,8 @@ bool CCalcGrasppointsClient::set_grasp_center(haf_grasping::GraspSearchCenter::R
 	//set grasp search center
 	this->graspsearchcenter.x = req.graspsearchcenter.x;
 	this->graspsearchcenter.y = req.graspsearchcenter.y;
-	ROS_INFO("Set grasp search center to: x=%ld, y=%ld", (long int)req.graspsearchcenter.x, (long int)req.graspsearchcenter.y);
+	this->graspsearchcenter.z = req.graspsearchcenter.z;
+	ROS_INFO("Set grasp search center to: x=%f, y=%f, z=%f", req.graspsearchcenter.x, req.graspsearchcenter.y, req.graspsearchcenter.z);
 	res.result = true;
 	ROS_INFO("sending back response: [%ld]", (long int)res.result);
 	return res.result;
