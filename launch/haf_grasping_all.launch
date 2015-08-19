@@ -5,14 +5,37 @@
 		type="calc_grasppoints_action_server">        
     	</node>
 
-	<!-- start haf_grasp calculation client -->
+	<!-- start haf_grasp calculation CLIENT -->
 	<node 	name="calc_grasppoints_svm_action_client" 
 		pkg="haf_grasping" 
-		type="calc_grasppoints_action_client">        
+		type="calc_grasppoints_action_client"
+		output="screen">        
     	</node>
 
 	<!-- start rviz for visualization -->
 	<include file="$(find haf_grasping)/launch/rviz.launch"/>	
+	
+	
+	
+	<!-- PARAMETER DEFINITION -->
+	
+	<!-- define center position of area where grasps are searched -->
+	<rosparam param="grasp_search_center"> [0.0,0.0,0.0] </rosparam>
+	
+	<!-- define grasp search size, i.e. the region size where grasps are searched for; limit x: 0-18; limit y: 0-32 -->
+	<rosparam param="grasp_search_size_x"> 18 </rosparam>
+	<rosparam param="grasp_search_size_y"> 30 </rosparam>
+	
+	<!-- define approach direction of gripper (without gripper roll): moving direction is reversed (AV = (0,0,1) <=> gripper moving along -z-axis ) -->
+	<rosparam param="gripper_approach_vector"> [0,0,1] </rosparam>
+	
+	<!-- define maximal calculation time max_calculation_time for finding grasps -->
+	<rosparam param="max_calculation_time"> 40 </rosparam>
+	
+	<!-- define if only best grasp should be visualized or more (if evaluation is higher then threshold) -->
+	<rosparam param="show_only_best_grasp"> false </rosparam>
+	
+	
 </launch>
 
 

@@ -200,7 +200,7 @@ public:
 		this->approach_vector.z = 1;	//default value
 		this->max_duration_for_grasp_calc = 50; 	//max calculation time before restult is returned (in sec)
 		outputpath_full = "/tmp/features.txt";
-		this->return_only_best_gp = true;
+		this->return_only_best_gp = false;
 		graspval_th = 70;					//treshold if grasp hypothesis should be returned (in function - so program internal) (for top result of one loop run)
 		graspval_top = 119;
 		graspval_max_diff_for_pub = 80;		//if the value of grasps is more than graspval_max_diff_for_pub lower than optimal value graspval_top, nothing gets published (for top result of one whole roll run)
@@ -270,6 +270,10 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	// set maximal calculation time
 	this->max_duration_for_grasp_calc = (float) goal->graspinput.max_calculation_time.toSec();
 	cout << "CCalc_Grasppoints::read_pc_cb --> max. calculation time was set to: " <<  this->max_duration_for_grasp_calc << "\n";
+
+	// set if only the best grasp should be visualized
+	this->return_only_best_gp = (bool) goal->graspinput.show_only_best_grasp;
+	cout << "CCalc_grasppoints::read_pc_cb --> show_only_best_grasp was set to: " << this->return_only_best_gp << endl;
 
 	//search for tf transform between camera ("frame") and robot ("base_link") camera coordinate system
 	ros::Time now = ros::Time::now();

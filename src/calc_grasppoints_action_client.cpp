@@ -30,6 +30,7 @@
 #include <haf_grasping/GraspSearchRectangleSize.h>
 #include <haf_grasping/GraspCalculationTimeMax.h>
 #include <haf_grasping/GraspApproachVector.h>
+#include <haf_grasping/ShowOnlyBestGrasp.h>
 // for reading pcd file
 #include <iostream>
 #include <pcl/io/pcd_io.h>
@@ -50,13 +51,15 @@ public:
 	ros::ServiceServer srv_set_grasp_search_area_size;	// service to set size of rectangle where grasps are searched
 	ros::ServiceServer srv_set_grasp_calculation_time_max;	// service to set maximal grasp calculation time (sec) before result is returned
 	ros::ServiceServer srv_set_approach_vector;			// service to set approach vector for grasping (only direction hand is approaching, not roll angle)
+	ros::ServiceServer srv_set_show_only_best_grasp;	// service to set show_only_best_grasp bool variable
 	geometry_msgs::Point graspsearchcenter;				// center for searching for grasps
 	geometry_msgs::Vector3 approach_vector;				// defines the direction from where a grasp should be executed
-	int grasp_search_size_x;		// the size (x direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
-	int grasp_search_size_y;		// the size (y direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
+	int grasp_search_size_x;			// the size (x direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
+	int grasp_search_size_y;			// the size (y direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
 	int max_grasp_search_size_x;	// x-limit for grasp search area size
 	int max_grasp_search_size_y;	// y-limit for grasp search area size
 	ros::Duration grasp_calculation_time_max;	//max time used for grasp calculation (sec) before result is returned
+	bool show_only_best_grasp;
 
 	void get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr& pc_in);
 	void open_pcd_and_trig_get_grasp_cb(std_msgs::String pcd_path);
@@ -64,31 +67,55 @@ public:
 	bool set_grasp_search_area_size(haf_grasping::GraspSearchRectangleSize::Request &req, haf_grasping::GraspSearchRectangleSize::Response &res);
 	bool set_grasp_calculation_time_max(haf_grasping::GraspCalculationTimeMax::Request &req, haf_grasping::GraspCalculationTimeMax::Response &res);
 	bool set_approach_vector(haf_grasping::GraspApproachVector::Request &req, haf_grasping::GraspApproachVector::Response &res);
+	bool set_show_only_best_grasp(haf_grasping::ShowOnlyBestGrasp::Request &req, haf_grasping::ShowOnlyBestGrasp::Response &res);
 
 	CCalcGrasppointsClient(ros::NodeHandle nh_)
 	{
-		//define center of grasp search rectangle
-		this->graspsearchcenter.x = 0.0;
-		this->graspsearchcenter.y = 0.0;
-		this->graspsearchcenter.z = 0.0;
-		//define grasp approach direction
-		this->approach_vector.x = 0.0;
-		this->approach_vector.y = 0.0;
+		//define center of grasp search rectangle (respectively take from launch file)
+		this->graspsearchcenter.x = this->graspsearchcenter.y = this->graspsearchcenter.z = 0.0;	//default values
+		std::vector<float> grasp_search_center_tmp;
+		if ( nh_.getParam("grasp_search_center", grasp_search_center_tmp) ) {
+			this->graspsearchcenter.x = grasp_search_center_tmp[0];
+			this->graspsearchcenter.y = grasp_search_center_tmp[1];
+			this->graspsearchcenter.z = grasp_search_center_tmp[2];
+		}
+		//define grasp approach direction (respectively take from launch file)
+		this->approach_vector.x = this->approach_vector.y = 0.0;
 		this->approach_vector.z = 1.0;
-		//define size of grasp search rectangle
-		this->grasp_search_size_x = 32;					//max. limit 32
-		this->grasp_search_size_y = 44;					//max. limit 44
+		std::vector<float> gripper_approach_vector_tmp;
+		if ( nh_.getParam("gripper_approach_vector", gripper_approach_vector_tmp) ) {
+			this->approach_vector.x = gripper_approach_vector_tmp[0];
+			this->approach_vector.y = gripper_approach_vector_tmp[1];
+			this->approach_vector.z = gripper_approach_vector_tmp[2];
+		}
+
+		//define size of grasp search rectangle (respectively take from launch file)
+		nh_.param("grasp_search_size_x", this->grasp_search_size_x, 18);	//default value = max. limit 32
+		nh_.param("grasp_search_size_y", this->grasp_search_size_y, 30);	//default value = max. limit 44
 		this->max_grasp_search_size_x = 18;				//max. limit 32-14=18
 		this->max_grasp_search_size_y = 30;				//max. limit 44-14=30
+		if (this->grasp_search_size_x < 1 or this->grasp_search_size_x > this->max_grasp_search_size_x)
+			this->grasp_search_size_x = this->max_grasp_search_size_x;
+		if (this->grasp_search_size_y < 1 or this->grasp_search_size_y > this->max_grasp_search_size_y)
+			this->grasp_search_size_y = this->max_grasp_search_size_y;
+
 		// define maximal time before grasp result is returned
-		this->grasp_calculation_time_max = ros::Duration(50);	// in sec
+		int max_calculation_time;
+		nh_.param("max_calculation_time", max_calculation_time, 50);	// in sec, with default value 50
+		this->grasp_calculation_time_max = ros::Duration(max_calculation_time);
+
+		// define if only the best grasp should be visualized (respectively take bool value from launch file)
+		nh_.param("show_only_best_grasp", this->show_only_best_grasp, true);
+
 		//subscriber for the point cloud
 		this->pc_sub = nh_.subscribe("/haf_grasping/depth_registered/single_cloud/points_in_lcs",1, &CCalcGrasppointsClient::get_grasp_cb, this);
 		this->pcd_sub = nh_.subscribe("/haf_grasping/input_pcd_rcs_path",1, &CCalcGrasppointsClient::open_pcd_and_trig_get_grasp_cb, this);
+		//services for setting parameters
 		this->srv_set_grasp_center = nh_.advertiseService("/haf_grasping/set_grasp_center", &CCalcGrasppointsClient::set_grasp_center,this);
 		this->srv_set_grasp_search_area_size = nh_.advertiseService("/haf_grasping/set_grasp_search_area_size", &CCalcGrasppointsClient::set_grasp_search_area_size,this);
 		this->srv_set_grasp_calculation_time_max = nh_.advertiseService("/haf_grasping/set_grasp_calculation_time_max", &CCalcGrasppointsClient::set_grasp_calculation_time_max,this);
 		this->srv_set_approach_vector = nh_.advertiseService("/haf_grasping/set_approach_vector", &CCalcGrasppointsClient::set_approach_vector, this);
+		this->srv_set_show_only_best_grasp = nh_.advertiseService("/haf_grasping/set_show_only_best_grasp", &CCalcGrasppointsClient::set_show_only_best_grasp, this);
 
 	}
 };
@@ -145,6 +172,9 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 
 	// set max grasp calculation time
 	goal.graspinput.max_calculation_time = this->grasp_calculation_time_max;
+
+	// set if only best grasp should be visualized
+	goal.graspinput.show_only_best_grasp = this->show_only_best_grasp;
 
 	//send goal
 	ac.sendGoal(goal);
@@ -229,6 +259,17 @@ bool CCalcGrasppointsClient::set_approach_vector(haf_grasping::GraspApproachVect
 	return res.result;
 }
 
+//set show_only_best_grasp (for visualization)
+bool CCalcGrasppointsClient::set_show_only_best_grasp(haf_grasping::ShowOnlyBestGrasp::Request &req,
+		haf_grasping::ShowOnlyBestGrasp::Response &res)
+{
+	//set show_only_best_grasp
+	this->show_only_best_grasp = req.show_only_best_grasp;
+	ROS_INFO("Set show_only_best_grasp to: [%d] ", (int)this->show_only_best_grasp);
+	res.result = true;
+	ROS_INFO("sending back response: [%d]", (int)res.result);
+	return res.result;
+}
 
 int main (int argc, char **argv)
 {
