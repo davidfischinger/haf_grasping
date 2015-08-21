@@ -2,19 +2,18 @@
  * calc_grasppoints_action_server.cpp
  *
  *     ActionServer for calculating grasp points with Height Accumulated Features
- *     (see IJRR 2015 => Link)
+ *     (see Int. Journal of Robotics Research, 21st July 2015: http://ijr.sagepub.com/content/34/9/1167)
  *
  *     Author: David Fischinger, Vienna University of Technology
- *     Date:   April 2015
+ *     Date:   August 2015
  *
- *     This ActionServer is calculating grasp points and approach vectors, given an input-goal
- *     (incl. point cloud and grasp search parameters such as area where to search for grasps (center and size),
- *     goal frame_id for point cloud transformation, maximal calculation time, ..).
- *     In a first step a height grid is created from the point cloud
- *     (for rotated and tilted point clouds <==> different rolls of hand and approaching directions).
+ *     This ActionServer calculates grasp points and approach vectors, given an input-goal
+ *     (incl. point cloud and grasp search parameters such as the area where to search for grasps (center and size),
+ *     goal frame_id for point cloud transformation, maximal calculation time, approach vector, ..).
+ *     In a first step for the given approach vector and different tested gripper rotations a height grid is created from the point cloud.
  *     For each 14x14 square of the height grid a feature vector is created.
  *     Using SVM with an existing model file, it is predicted if the center of the square is a good
- *     grasping point. For the best grasping point the coordinates and the direction of the approach vector
+ *     grasping point. For the best grasping point the coordinates and the direction of the approach vector and the gripper orientation
  *     is published.
  *
  *
@@ -24,12 +23,12 @@
  *
  *      == Output ==
  *
- *      Grasp points and approach vector which are detected using Support Vector Machines
+ *      Grasp points and approach vector which are detected using Support Vector Machines with Height Accumulated Features
  *      Format: eval, gp1_x, gp1_y, gp1_z, gp2_x, gp2_y, gp2_z, appr_dir_x, appr_dir_y, appr_dir_z roll
  *      	- eval: an evaluation value between 10 and 99. (99 is the top value)
  *      	- gp1_x: x value for the first of the two grasp points
- *      	- gp2_x: x value for the second grasp point (analog for y- and z-axis)
- *      	- appr_dir_x, appr_dir_y: approach direction; direction that has to be used to approach to the object with the gripper
+ *      	- gp2_x: x value for the second grasp point (analog for y- and z-values)
+ *      	- appr_dir_x, appr_dir_y, appr_dir_z: approach direction; direction that has to be used to approach to the object with the grippers tcp
  *      	- roll: the roll orientation of the gripper in degree
  *
  *
@@ -92,9 +91,9 @@
 #define PI 3.141592653
 #define ROLL_STEPS_DEGREE 15	//define in degree how different the tested rolls should be
 #define TILT_STEPS_DEGREE 40	//define in degree the angle for one tilt step
-#define TILT_STEPS 1			//define the number of tilt steps
+#define TILT_STEPS 1			//define the number of tilt steps [not used anymore]
 
-//define maximal degree of rotation of box, should be normally 180+ROLL_STEPS_DEGREE (179,9) because in OR the opposite
+//define maximal degree of rotation of box, should be normally 180+ROLL_STEPS_DEGREE because in OR the opposite
 //grasp is always tested (=> overall 360 degree). Set this value to ROLL_STEPS_DEGREE if only the first rotation should be checked!
 #define ROLL_MAX_DEGREE 190//190
 
@@ -128,7 +127,6 @@ public:
 	ros::Publisher vis_pub_ma_params;	//MarkerArray (for visualization of grasp parameters: search filed size, gripper closing direction,..)
 	geometry_msgs::Point graspsearchcenter;	//substitute for box_center_x/y => origin of approach vector
 	float boxrot_angle_init;			//angle the box is rotated in real world w.r.t. "default" position
-	bool box_position_set;
 	int grasp_search_area_size_x_dir;	// defines the size (x-direction) of the rectangle where grasps are searched
 	int grasp_search_area_size_y_dir;   // defines the size (y-direction) of the rectangle where grasps are searched
 	geometry_msgs::Vector3 approach_vector;	// defines approach direction for grasp
@@ -138,7 +136,7 @@ public:
 	bool point_inside_box_grid[ROLL_MAX_DEGREE/ROLL_STEPS_DEGREE][TILT_STEPS][HEIGHT][WIDTH];	//saves for which points featurevector is calculated
  	string outputpath_full;
  	bool return_only_best_gp;
- 	int graspval_th; 					//treshhold if grasp hypothesis should be returned
+ 	int graspval_th; 					//treshold if grasp hypothesis should be returned
  	int graspval_top;					//optimal grasp evaluation possible
  	int graspval_max_diff_for_pub;
 	//define x,y,and roll for top grasp for overall grasping (all tilts, all rows)
@@ -148,7 +146,7 @@ public:
 	int nr_tilt_top_overall;
 	int topval_gp_overall;
 	int marker_cnt;
-	string gp_result; //saves return values for ActionServer (bad programming style)
+	string gp_result; //saves return values for ActionServer
 	tf::TransformListener tf_listener;
 	bool visualization;
 	bool print_heights_bool; //indicates if grid heights should be printed on screen
@@ -157,11 +155,8 @@ public:
 	tf::Quaternion quat_tf_to_tf_help;	//saves quaternion for axis transformation
 
 
- 	//void set_box_position_cb(std_msgs::String box_position_str);
  	void print_heights(int nr_roll, int nr_tilt);
- 	//void read_pc_cb(const sensor_msgs::PointCloud2ConstPtr& pc_in); //before action server was used
- 	void read_pc_cb(const haf_grasping::CalcGraspPointsServerGoalConstPtr &goal); // receive point cloud as action goal
-
+ 	void read_pc_cb(const haf_grasping::CalcGraspPointsServerGoalConstPtr &goal); // receive action goal incl. point cloud and grasp search parameters
  	void loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in);
  	void generate_grid(int roll, int tilt, pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in);
  	void publish_transformed_pcl_cloud(int roll, int tilt, pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in);
@@ -172,7 +167,6 @@ public:
  	void show_predicted_gps(int nr_roll, int tilt, bool svm_with_probability=false);
  	void transform_gp_in_wcs_and_publish(int id_row_top_all, int id_col_top_all,int nr_roll_top_all, int nr_tilt_top_all, int scaled_gp_eval);
 	void publish_grasp_grid(int nr_roll, int tilt, float graspsgrid[][WIDTH], int gripperwidth);
-
 	void gp_to_marker(visualization_msgs::Marker *marker, float x, float y, float z, float green, bool pubmarker, int gripperwidth, int nr_roll, bool pub_grip_open_dir, bool pub_grid);
 	void grasp_area_to_marker(visualization_msgs::Marker *marker, float x, float y, float z, int gripperwidth, int nr_roll, int param_id, bool top_grasp);
 
@@ -180,8 +174,6 @@ public:
 	    as_(nh_, name, boost::bind(&CCalc_Grasppoints::read_pc_cb, this, _1), false),
 	    action_name_(name)
 	{
-		//this->pc_sub = nh_.subscribe("/SS/points2_object_in_rcs",1, &CCalc_Grasppoints::read_pc_cb, this);	//callback for reading point cloud of box content
-		//this->pubGraspPoints = nh_.advertise<std_msgs::String>("/SVM/grasp_hypothesis", 1);
 		this->pubGraspPointsEval = nh_.advertise<std_msgs::String>("/haf_grasping/grasp_hypothesis_with_eval", 1);
 		this->vis_pub = nh_.advertise<visualization_msgs::Marker>( "visualization_marker", 1 );					//Marker
 		this->vis_pub_ma = nh_.advertise<visualization_msgs::MarkerArray>( "visualization_marker_array", 1 );	//MarkerArray
@@ -189,7 +181,6 @@ public:
 		this->pubInputPCROS = nh_.advertise<sensor_msgs::PointCloud2>( "/haf_grasping/calc_gp_as_inputpcROS", 1);
 		this->pubTransformedPCROS = nh_.advertise<sensor_msgs::PointCloud2>( "/haf_grasping/transformed_point_cloud",1);
 		this->pubInputPCPCL = nh_.advertise<sensor_msgs::PointCloud2>( "/calc_gp_as_inputpcPCL", 1);
-		box_position_set = true;
 		this->graspsearchcenter.x = 0;	//default value
 		this->graspsearchcenter.y = 0;	//default value
 		this->graspsearchcenter.z = 0;	//default value
@@ -237,26 +228,24 @@ void CCalc_Grasppoints::print_heights(int nr_roll, int nr_tilt)
 
 
 
-// Input: action goal including point clout, center position where to grasp (x-,y-,z-coordinates), approach direction
-// Variable are set from the goal and the loop for GP calculation is started
+// Callback triggered by input goal: variable are set from the goal and the loop for grasp point calculation is started
+// Input: action goal including point clout, approach direction, center position where to grasp (x-,y-,z-coordinates), size of area where grasps are searched
 void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoalConstPtr &goal)
 {
-	ROS_INFO("\nCCalc_Grasppoints::read_pc_cb --> From calc_grasppoints_action_server: grasp goal (incl. point cloud) was received");
+	ROS_INFO("\n ==> calc_grasppoints_action_server.cpp: read_pc_cb() --> GRASP GOAL RECEIVED (incl. point cloud)");
 	//transform point cloud to PCL
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in;
 	pcl::PointCloud<pcl::PointXYZ> pc_new_cs;
 
-
 	// set center of area where grasps are searched
-	// missing: error handling
 	this->graspsearchcenter.x = goal->graspinput.grasp_area_center.x;
 	this->graspsearchcenter.y = goal->graspinput.grasp_area_center.y;
 	this->graspsearchcenter.z = goal->graspinput.grasp_area_center.z;
 
-	cout << "SET NEW GRASP SEARCH CENTER: graspsearchcenter.x: " << this->graspsearchcenter.x << "  graspsearchcenter.y: " << this->graspsearchcenter.y << "  graspsearchcenter.z: " << this->graspsearchcenter.z << "\n";
+	cout << "************************************************************************************************************" << endl;
+	cout << " --> SET NEW GRASP SEARCH CENTER:  [x,y,z] = [" << this->graspsearchcenter.x << "," << this->graspsearchcenter.y << "," << this->graspsearchcenter.z << "]" << endl;
 
 	// define size of area where to search for grasp points
-	// TODO  missing error handling and setting of min and max limits
 	this->grasp_search_area_size_x_dir = goal->graspinput.grasp_area_length_x;
 	this->grasp_search_area_size_y_dir = goal->graspinput.grasp_area_length_y;
 
@@ -265,32 +254,35 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	this->approach_vector.x = goal->graspinput.approach_vector.x/vector_length;
 	this->approach_vector.y = goal->graspinput.approach_vector.y/vector_length;
 	this->approach_vector.z = goal->graspinput.approach_vector.z/vector_length;
-	cout << "\n this->approach_vector from goal: " << this->approach_vector << endl;
+	cout << " --> SET APPROACH VECTOR TO:      " << " [x,y,z] = [" << this->approach_vector.x << "," << this->approach_vector.y << "," << this->approach_vector.z << "]" << endl;
 
 	// set maximal calculation time
 	this->max_duration_for_grasp_calc = (float) goal->graspinput.max_calculation_time.toSec();
-	cout << "CCalc_Grasppoints::read_pc_cb --> max. calculation time was set to: " <<  this->max_duration_for_grasp_calc << "\n";
+	cout << " --> SET MAX. CALCULATION TIME TO: " <<  this->max_duration_for_grasp_calc << endl;
 
 	// set if only the best grasp should be visualized
 	this->return_only_best_gp = (bool) goal->graspinput.show_only_best_grasp;
-	cout << "CCalc_grasppoints::read_pc_cb --> show_only_best_grasp was set to: " << this->return_only_best_gp << endl;
+	cout << " --> SET show_only_best_grasp TO:  " << this->return_only_best_gp << endl;
 
-	//search for tf transform between camera ("frame") and robot ("base_link") camera coordinate system
-	ros::Time now = ros::Time::now();
-	bool foundTransform = tf_listener.waitForTransform(/*req.frame_id_desired.data.c_str()*/"/base_link", /*req.frame_id_original.data.c_str()*/"frame", now, ros::Duration(1.0));
-	if (!foundTransform)
-	{
-		ROS_WARN("CCalc_Grasppoints::read_pc_cb: No transform for point cloud found");
-	}
+	cout << "Fixed by now: this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
+	cout << "************************************************************************************************************" << endl;
+
+	//search for tf transform between camera ("frame") and robot ("base_link") coordinate system
+	//ros::Time now = ros::Time::now();
+	//bool foundTransform = tf_listener.waitForTransform(/*req.frame_id_desired.data.c_str()*/"/base_link", /*req.frame_id_original.data.c_str()*/"frame", now, ros::Duration(1.0));
+	//if (!foundTransform)
+	//{
+	//	ROS_WARN(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): NO TRANSFORM FOR POINT CLOUD FOUND");
+	//}
 
 	//ROS_INFO(tf_listener);
-	ROS_INFO("CCalc_Grasppoints::read_pc_cb: Transform for point cloud found");
+	//ROS_INFO(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): TRANSFORM FOR POINT CLOUD FOUND");
 
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in_old_cs;
 	pcl::fromROSMsg(goal->graspinput.input_pc, pcl_cloud_in_old_cs); // transform ROS msg into PCL-pointcloud
 
-	pcl_ros::transformPointCloud(/*req.frame_id_desired.data.c_str()*/"/base_link", pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
-	pcl_cloud_in = pc_new_cs;
+	//pcl_ros::transformPointCloud(/*req.frame_id_desired.data.c_str()*/"/base_link", pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
+	//pcl_cloud_in = pc_new_cs;
 
 
 
@@ -304,16 +296,16 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	nr_tilt_top_overall = -1;
 	topval_gp_overall = -1000;
 
-	loop_control(pcl_cloud_in);
+	//loop_control(pcl_cloud_in);
+	loop_control(pcl_cloud_in_old_cs);
 }
 
 
 
-//controls the execution of class methods
-//loop goes through all rolls and tilts and executes necessary methods for calculation of gps
+//Main function: controls the sequence and execution of class methods
+//loop goes through all rolls [tilts are currently not used] and executes necessary methods for calculation of gps
 void CCalc_Grasppoints::loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in)
 {
-
 	int time_for_calc_in_secs = this->max_duration_for_grasp_calc;
 	time_t start,end;
 	time (&start);
@@ -347,9 +339,9 @@ void CCalc_Grasppoints::loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in
 			//calculate only for defined time
 			time (&end);
 			timedif = difftime (end,start);
-			cout << "\n cur timediff: " << timedif << endl;
+			cout << "\n ===> TEST ROTATION: " << roll*ROLL_STEPS_DEGREE << "\nRuntime so far (in sec): " << timedif << endl;
 			if (timedif > time_for_calc_in_secs) {
-				cout << "\n time is over, stop calculating of grasp points!!\n";
+				cout << "\n Calculation time is over, stop calculation of grasp points!!\n";
 				break;
 			}
 
@@ -399,7 +391,7 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	av->x = this->approach_vector.x;
 	av->y = this->approach_vector.y;
 	av->z = this->approach_vector.z;
-	cout <<  "\nApproach vector: [" << av->x << "," << av->y << "," << av->z << "]" << endl;
+	//cout <<  "\nApproach vector: [" << av->x << "," << av->y << "," << av->z << "]" << endl;
 
 	Eigen::Matrix4f mat_sh_to_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from search center to origin
 	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc and then shifts pc back to box center
@@ -420,8 +412,6 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	mat_sh_from_orig(2,3) = /*this->graspsearchcenter.z*/0 + this->trans_z_after_pc_transform;	//move pc up to make calculation possible
 
 
-	cout << "\n\n\n\n\n this->graspsearchcenter.z: " << this->graspsearchcenter.z << "\nthis->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
-
 	if (av->y == 0 and av->x == 0){	//if av->y = av->x = 0
 		rot_about_z = 0;
 		if (av->z >= 0) {
@@ -434,8 +424,8 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 		rot_about_x = 90*PI/180.0 - atan2( av->z, sqrt(av->y*av->y + av->x*av->x) );
 	}
 
-	cout << "rot_about_z: " << rot_about_z << "\nav->y: " << av->y << "\nav->x: " << av->x << endl;
-	cout << "rot_about_x: " << rot_about_x << "\nav->z: " << av->z << "\nav->y: " << av->y << endl;
+	//cout << "rot_about_z: " << rot_about_z << "\nav->y: " << av->y << "\nav->x: " << av->x << endl;
+	//cout << "rot_about_x: " << rot_about_x << "\nav->z: " << av->z << "\nav->y: " << av->y << endl;
 
 	//define matrices s.t. transformation matrix can be calculated for point cloud (=> roll and tilt are simulated)
 
@@ -464,22 +454,21 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	this->av_trans_mat = mat_transform;	//class variable to transform visualization stuff
 
 
-
-	pcl::copyPointCloud(pcl_cloud_in, pcl_cloud_transformed);	// copy notwendig?? pointer/nicht pointerzeug richtig???
+	pcl::copyPointCloud(pcl_cloud_in, pcl_cloud_transformed);
 	pcl::transformPointCloud(pcl_cloud_in, pcl_cloud_transformed, mat_transform);  //transform original point cloud
 
 
 	//publish transformed point cloud:
 	if (this->visualization)
 	{
-		cout << "publish transformed point cloud! \n";
+		cout << "Publish transformed point cloud! \n";
 		this->pubTransformedPCROS.publish(pcl_cloud_transformed);
 	}
 
 	//set heightsgridroll to -1.0 at each position
 	for (int i = 0; i < nr_rows; i++)
 		for (int j = 0; j < nr_cols; j++)
-			this->heightsgridroll[roll][tilt][i][j]= -1.0;	//david new: achtung, nach tilt sind werte <0 auch moeglich
+			this->heightsgridroll[roll][tilt][i][j]= -1.0;	//needed because after tilting (now: general pc transform) values below 0 possible
 
 	//make heightsgrid (find highest points for each 1x1cm rectangle); translate grid s.t. it starts with (0,0)
 	for (size_t i = 0; i < pcl_cloud_transformed.points.size(); ++i)
@@ -510,7 +499,7 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 }
 
 
-//function by now only used to publish original point cloud without tranformations
+//function by now only used to publish original point cloud without transformations
 void CCalc_Grasppoints::publish_transformed_pcl_cloud(int roll, int tilt, pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in)
 {
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud_transformed;
@@ -549,7 +538,6 @@ void CCalc_Grasppoints::publish_transformed_pcl_cloud(int roll, int tilt, pcl::P
 
 	//publish transformed point cloud:
 	this->pubTransformedPCROS.publish(pcl_cloud_transformed);
-
 }
 
 
@@ -597,7 +585,7 @@ void CCalc_Grasppoints::calc_intimage(int roll, int tilt)
 
 void CCalc_Grasppoints::calc_featurevectors(int roll, int tilt)
 {
-	cout << "\n calc_featurevectors \n";
+	//cout << "\n calc_featurevectors \n";
 
 	//create object for calculating features
 	CIntImage_to_Featurevec * ii_to_fv = new CIntImage_to_Featurevec();
@@ -728,42 +716,42 @@ void CCalc_Grasppoints::pnt_in_box(int nr_roll, int nr_tilt){
 
 
 
-
+//Use trained SVM-model for grasp prediction (and scale feature values beforehand)
 void CCalc_Grasppoints::predict_bestgp_withsvm(bool svm_with_probability){
 	//executes:
 	//	./svm-scale -r ./tools/range /tmp/features.txt > /tmp/features.txt.scale
 	//  ./svm-predict /tmp/features.txt.scale ./tools/mixedmanual_features_1000_rand.txt.model output
-	//scale feature vectors
 
 	try{
 		string pkg_path = ros::package::getPath("haf_grasping");
 
 		//scale: use existing scaling file to scale feature values
-
 		stringstream ss, ss2;
 		ss << pkg_path << "/libsvm-3.12/svm-scale -r " << pkg_path << "/data/range21062012_allfeatures /tmp/features.txt > /tmp/features.txt.scale";
 		string command = ss.str();
 		int i = system(command.c_str());
-		cout << "\n\n i (scale): " << i << endl;
+		if (i != 0){
+			ROS_WARN(" CCalc_Grasppoints::predict_bestgp_withsvm() SCALING OF FEATURES WAS NOT EXECUTED AS IT SHOULD (Was SVM code compiled?) ");
+			cout << "===> CCalc_Grasppoints::predict_bestgp_withsvm: System return value for scaling features is: " << i << endl;
+		}
 
+		//predict grasping points
 		if (!svm_with_probability){
-			//predict grasping points
-
 			//	trained with all examples
 			ss2 << pkg_path << "/libsvm-3.12/svm-predict /tmp/features.txt.scale " << pkg_path << "/data/all_features.txt.scale.model /tmp/output_calc_gp.txt";
 			string command2 = ss2.str();
 			i = system(command2.c_str());
-
 		} else {
 			//	trained with all manual examples, using probability as output
 			i = system("/usr/lib/libsvm/libsvm-3.1/svm-predict -b 1 /tmp/features.txt.scale /usr/lib/libsvm/libsvm-3.1/tools/allmanualfeatures.txt.scale.p.model /tmp/output_calc_gp.txt");
 		}
-		cout << "\n\n i (predict): " << i << endl;
+		if (i != 0){
+			ROS_WARN(" CCalc_Grasppoints::predict_bestgp_withsvm() GRASP PREDICTION FROM FEATURES WAS NOT EXECUTED AS IT SHOULD (Was SVM code compiled?) ");
+			cout << "===> CCalc_Grasppoints::predict_bestgp_withsvm: System return value for execution of grasp prediction with SVM: " << i << endl;
+		}
 	} catch (int j) {
 		cerr << "ERROR in calc_grasppoints.cpp: predict_bestgp_withsvm()" << endl;
 	}
-
-
 }
 
 
@@ -773,7 +761,6 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 
 	//open file
 	ifstream file_in(path_svm_output.c_str());
-
 
 	//define x,y,and roll for top grasp
 	int id_row_top_all = -1;
@@ -817,7 +804,6 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 	}
 
 	//print graspgrid in intuitive way (if variable printgraspsgrid is set true)
-
 	if (printgraspsgrid){
 		cout << "\n Graspsgrid: intuitiv! \n";
 		for (int row = HEIGHT-1; row >= 0; row--){
@@ -853,7 +839,7 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 				id_row_top = row;
 				id_col_top = col;
 				if (topval_gp > topval_gp_all){
-					cout << "\n new overall grasp evaluation with value: " << topval_gp << "  in row,col: [" << id_row_top << ", " << id_col_top <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
+					cout << "New overall grasp evaluation with value: " << topval_gp << "  in row,col: [" << id_row_top << ", " << id_col_top <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
 					id_row_top_all = id_row_top;
 					id_col_top_all = id_col_top;
 					nr_roll_top_all = nr_roll;
@@ -887,7 +873,7 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 					best_topval_row = row;
 					best_topval_col = col - cur_topval_len/2;
 					if (topval_gp == topval_gp_all){
-						cout << "\n better topval gp still with topval: " << topval_gp << "  in row,col: [" << best_topval_row << ", " << best_topval_col <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
+						cout << "Better topval gp still with topval: " << topval_gp << "  in row,col: [" << best_topval_row << ", " << best_topval_col <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
 						id_row_top_all = best_topval_row;
 						id_col_top_all = best_topval_col;
 					}
@@ -903,7 +889,7 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 
 	//show grasp predicted in mirrored (more intuitive) way
 	if (printgraspseval) {
-		cout << "\n grasps predicted more intuitiv: \n";
+		cout << "\n Grasps predicted more intuitively: \n";
 		for (int row = HEIGHT-1; row >= 0; row--){
 			for (int col = WIDTH-1; col >= 0; col--){
 				cout << setw(3) << setprecision(3) <<graspseval[row][col];
@@ -915,12 +901,12 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 			cout << endl;
 		}
 	}
-	cout << "\n best graspvalue so far: " << topval_gp_all << endl;
+	cout << "\n Best grasp value for currently tested roll: " << topval_gp_all << endl;
 
 	file_in.close();
 
 	if (topval_gp_all > this->topval_gp_overall){	//new best grasp hypothesis!
-		cout << "\n new overall (overall!) grasp evaluation with value: " << topval_gp_all << "  in row,col: [" << id_row_top_all << ", " << id_col_top_all <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
+		cout << "\n New overall (overall!) grasp evaluation with value: " << topval_gp_all << "  in row,col: [" << id_row_top_all << ", " << id_col_top_all <<"] and rotation: " << nr_roll*ROLL_STEPS_DEGREE << endl;
 		this->id_row_top_overall = id_row_top_all;
 		this->id_col_top_overall = id_col_top_all;
 		this->nr_roll_top_overall = nr_roll_top_all;
@@ -929,7 +915,7 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 	}
 
 	if (this->return_only_best_gp){
-		cout << "\n Loop finished. Only best grasp is published after full gp calculation! \n";
+		cout << "\n Grasp detection for one roll finished. Only best grasp is published after full gp calculation! \n";
 	} else if ((topval_gp_all > this->graspval_th)  ){
 		//calculate coordinates for best grasp points with roll in world
 		//transfer validation to value between 10 and 99 (if smaler 26, then value is set to 10)
@@ -937,7 +923,7 @@ void CCalc_Grasppoints::show_predicted_gps(int nr_roll, int tilt, bool svm_with_
 		if (scaled_gp_eval < 10) scaled_gp_eval = 10;	//should not be neccessary since graspval_th is high enough
 		transform_gp_in_wcs_and_publish(id_row_top_all, id_col_top_all,nr_roll_top_all, nr_tilt_top_all, scaled_gp_eval);
 	} else { //better grasps would be published but were not found for this loop
-		cout << "\n No grasp point found above treshold for last loop!!! \n";
+		cout << "\n For current roll no grasp point had an evaluation above threshold for publishing! \n";
 	}
 }
 
@@ -955,10 +941,6 @@ void CCalc_Grasppoints::publish_grasp_grid(int nr_roll, int tilt, float graspsgr
 	x = this->graspsearchcenter.x - 0.01*HEIGHT/2/gripperwidth;
 	y = this->graspsearchcenter.y - 0.01*WIDTH/2;
 	z = this->graspsearchcenter.z + this->trans_z_after_pc_transform;
-	cout << "x: " << x << endl;
-
-
-
 
 
 	//publish tf_frame "tf_help" and grasp position (green bars where height is indicating the quality)
@@ -998,7 +980,7 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 
 	//calculate rotation for tf-helper coordinate system for visualization
 	float rot_z, rot_x;
-	//cout <<  "\nmarker: Approach vector: [" << this->approach_vector.x << "," << this->approach_vector.y << "," << this->approach_vector.z << "]" << endl;
+
 	if (this->approach_vector.y == 0 and this->approach_vector.x == 0){	//if av->y = av->x = 0
 		rot_z = 0;
 		if (this->approach_vector.z >= 0) {
@@ -1059,13 +1041,11 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
 
 
-//-------------------------------------------------------------------------------------------------------
 	//stupid data conversion from Eigen::Matrix4f to tf::Transform
 	Eigen::Matrix4f Tm;
 	Tm = mat_transform.inverse();
 	tf::Vector3 origin;
 	origin.setValue(static_cast<double>(Tm(0,3)),static_cast<double>(Tm(1,3)),static_cast<double>(Tm(2,3)));
-	//cout << origin.getZ() << endl;
 	tf::Matrix3x3 tf3d;
 	tf3d.setValue(static_cast<double>(Tm(0,0)), static_cast<double>(Tm(0,1)), static_cast<double>(Tm(0,2)),
 	        static_cast<double>(Tm(1,0)), static_cast<double>(Tm(1,1)), static_cast<double>(Tm(1,2)),
@@ -1083,7 +1063,7 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 	if (pub_grid){
 		std::stringstream ss;
 		ss << tmp_tf_help ;
-		(*marker).header.frame_id = ss.str();  //used: "tf_help" (and not "base_link";)
+		(*marker).header.frame_id = ss.str();  //used: "tf_help"
 		(*marker).header.stamp = ros::Time();
 		(*marker).ns = "my_namespace";
 		(*marker).id = marker_cnt++;
@@ -1124,7 +1104,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 	int fix_marker_id_grasp_search_area = 10002;
 	int fix_marker_id_grasp_search_area2 = 10003; //inner part where feature vectors are really calculated
 
-	(*marker).header.frame_id = "tf_help";//"base_link";
+	(*marker).header.frame_id = "tf_help";
 	(*marker).header.stamp = ros::Time::now();//ros::Time();
 	(*marker).ns = "haf_grasping_parameters";
 
@@ -1187,7 +1167,6 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 	    			(*marker).color.g = 0.0;
 	    			(*marker).color.b = 0.0;
 	    			if (top_grasp){
-	    				//(*marker).header.frame_id = "base_link";
 	    				(*marker).pose.position.x = x;
 	    				(*marker).pose.position.y = y;
 	    				(*marker).pose.position.z = z;
@@ -1248,7 +1227,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 //input: best row and col in virtual rotated box and rotation angle
 //output: calculates grasp point in world coordinate system and publishes it
 void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int id_col_top_all,int nr_roll_top_all, int nr_tilt_top_all, int scaled_gp_eval){
-	cout << "\n -> transform_gp_in_wcs_and_publish() " << endl;
+	cout << "\n ===> transform_gp_in_wcs_and_publish(): TRANSFORM FOUND GRASP" << endl;
 	Eigen::Matrix4f mat_sh_to_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from center to origin
 	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc
 	Eigen::Matrix4f mat_tilt = Eigen::Matrix4f::Identity(); //matrix which tilts pc
@@ -1273,7 +1252,7 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 	mat_sh_from_orig(2,3) = 0/*this->graspsearchcenter.z*/ + this->trans_z_after_pc_transform;	//move pc up to make calculation possible
 
 
-	cout << "\n\n\n\n\n this->graspsearchcenter.z: " << this->graspsearchcenter.z << "\nthis->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
+	//cout << "\n Fixed this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
 
 	if (this->approach_vector.y == 0 and this->approach_vector.x == 0){	//if this->approach_vector.y = this->approach_vector.x = 0
 		rot_about_z = 0;
@@ -1312,7 +1291,7 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
 
 
-	cout << "\n id_row_top_all: " << id_row_top_all << "\t" << "id_col_top_all: " << id_col_top_all << "\t and rotation: " << nr_roll_top_all*ROLL_STEPS_DEGREE << "  tilt_top: " << nr_tilt_top_all <<endl;
+	cout << " ---> id_row_top_all: " << id_row_top_all << "\t" << "id_col_top_all: " << id_col_top_all << "\t and rotation: " << nr_roll_top_all*ROLL_STEPS_DEGREE << "  tilt_top: " << nr_tilt_top_all <<endl;
 	//publish best grasp point (with roll):
 	float x_gp_roll = /*this->graspsearchcenter.x*/ - ((float)(HEIGHT/2 - id_row_top_all))/100;	//x-coordinate of the graspcenterpoint if the box would be rotated by nr_roll_top_all*ROLL_STEPS_DEGREE degree
 	float y_gp_roll = /*this->graspsearchcenter.y*/ - ((float)(WIDTH/2  - id_col_top_all))/100;  //y-coordinate of the graspcenterpoint if the box would be rotated by nr_roll_top_all*ROLL_STEPS_DEGREE degree
@@ -1331,7 +1310,7 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 
 	h_locmax_roll -= 0.01;	//reduce local maximal height by a threshold (2cm currently) => fine calculation should be done in simulation anyway
 	float z_gp_roll = h_locmax_roll;
-	cout << "x_roll: "<< x_gp_roll << "\t y_roll: " << y_gp_roll << "\t z_gp_roll: " << z_gp_roll << endl;
+	cout << " ---> x_roll: "<< x_gp_roll << "\t y_roll: " << y_gp_roll << "\t z_gp_roll: " << z_gp_roll << endl;
 
 	//make rotation
 	//pcl::transformPointCloud(pcl_cloud_in, pcl_cloud_in_roll, mat_transform);
@@ -1351,21 +1330,20 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 
 	appr_vec = mat_rot_for_appr_vec*appr_vec;
 
-	cout << "\n gp1: x_roll_wcs: "<< gp1_wcs[0] << "\t y_roll_wcs: " << gp1_wcs[1] << "\t z_roll_wcs: " << gp1_wcs[2] << endl;
-	cout << " gp2: x_roll_wcs: "<< gp2_wcs[0] << "\t y_roll_wcs: " << gp2_wcs[1] << "\t z_roll_wcs: " << gp2_wcs[2] << endl;
+	cout << " ---> GP_1: x_roll_wcs: "<< gp1_wcs[0] << "\t y_roll_wcs: " << gp1_wcs[1] << "\t z_roll_wcs: " << gp1_wcs[2] << endl;
+	cout << " ---> GP_2: x_roll_wcs: "<< gp2_wcs[0] << "\t y_roll_wcs: " << gp2_wcs[1] << "\t z_roll_wcs: " << gp2_wcs[2] << endl;
 
 
 	//Publish grasp points
 	std_msgs::String msgStrPoints;
     std::stringstream ss;
 
-    //David: achtung, jetzt noch mit eval!!
     ss << scaled_gp_eval << " " << gp1_wcs[0] <<" "<< gp1_wcs[1] << " "<< gp1_wcs[2] << " "<< gp2_wcs[0] << " " << gp2_wcs[1] << " " << gp2_wcs[2] << " "<< appr_vec(0) << " "<< appr_vec(1) << " "<< appr_vec(2) << " " << (gp1_wcs[0]+gp2_wcs[0])/2.0 <<" " << (gp1_wcs[1]+gp2_wcs[1])/2.0 <<" " << (gp1_wcs[2]+gp2_wcs[2])/2.0 <<" " << nr_roll_top_all*ROLL_STEPS_DEGREE;
  	msgStrPoints.data = ss.str();
- 	this->gp_result = ss.str();		//new 3.12.2014
+ 	this->gp_result = ss.str();
 
  	//publish best grasp as rviz visualization_msgs::Marker
- 	visualization_msgs::Marker marker_best_params; //dddddd
+ 	visualization_msgs::Marker marker_best_params;
 	visualization_msgs::MarkerArray ma_best_params;
 	//show grasp params (grasp search field size, gripper closing direction)
 	for (int i = 3; i <= 3; i++){	//closing direction (red line) for best grasp
@@ -1379,7 +1357,7 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 	vis_pub_ma_params.publish(ma_best_params);	//publish best grasp parameter
 
  	//pubGraspPoints.publish(msgStrPoints);
-	cout << "\n scaled_gp_eval: " << scaled_gp_eval << endl;
+	cout << " ---> Scaled GP Evaluation (-20-99) [-20 <=> no GP found]: " << scaled_gp_eval << endl;
 	pubGraspPointsEval.publish(msgStrPoints);
 
 }
