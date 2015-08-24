@@ -8,8 +8,10 @@ float32 grasp_area_length_y				# defines the length of the rectangle (in y direc
 
 
 duration max_calculation_time			# maximal calculation time before grasp result is returned
-bool return_first_grasp_over_th			# If this is set to true, the system return the first grasp that is higher then a specified threshold
+bool show_only_best_grasp				# If true, only the best grasp is shown in visualization
 int32 threshold_grasp_evaluation		# defines the threshold for return_first_grasp_over_th if it is set to true (otherwise it is ignored)
+
+geometry_msgs/Vector3 approach_vector	# defines the direction from where a grasp should be executed 
 
 #geometry_msgs/Vector3 scale_gripper	# Scale of the gripper in x and y direction if it deviates from a gripper of the size of a huMAN hand
 

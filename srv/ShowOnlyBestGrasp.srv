@@ -1,0 +1,3 @@
+bool show_only_best_grasp			# ShowOnlyBestGrasp: defines if only the best grasp should be visualized
+---
+bool result

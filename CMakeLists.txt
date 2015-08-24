@@ -69,6 +69,8 @@ add_service_files(
    GraspSearchCenter.srv
    GraspSearchRectangleSize.srv
    GraspCalculationTimeMax.srv
+   GraspApproachVector.srv
+   ShowOnlyBestGrasp.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -143,10 +145,12 @@ add_executable(calc_grasppoints_action_server src/calc_grasppoints_action_server
 add_executable(calc_grasppoints_action_client src/calc_grasppoints_action_client.cpp)
 
 
+
 target_link_libraries(CIntImage_to_Featurevec CHaarFeature ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 #target_link_libraries(calc_grasppoints CIntImage_to_Featurevec ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 target_link_libraries(calc_grasppoints_action_server CIntImage_to_Featurevec ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 target_link_libraries(calc_grasppoints_action_client ${catkin_LIBRARIES} )
+
 
 ## Specify libraries to link a library or executable target against
 # target_link_libraries(calc_grasppoints_svm_node
