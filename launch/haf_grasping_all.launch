@@ -35,6 +35,8 @@
 	<!-- define if only best grasp should be visualized or more (if evaluation is higher then threshold) -->
 	<rosparam param="show_only_best_grasp"> false </rosparam>
 	
+	<!-- define the topic for incoming point clouds -->
+	<rosparam param="input_pc_topic">/haf_grasping/depth_registered/single_cloud/points_in_lcs</rosparam>
 	
 </launch>
 
