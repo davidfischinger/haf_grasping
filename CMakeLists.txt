@@ -107,6 +107,7 @@ catkin_package(
 	std_msgs 
 	geometry_msgs
 	pcl_conversions
+	pcl_ros
 #  DEPENDS system_lib
 )
 
