@@ -59,6 +59,7 @@ public:
 	int max_grasp_search_size_y;	// y-limit for grasp search area size
 	ros::Duration grasp_calculation_time_max;	//max time used for grasp calculation (sec) before result is returned
 	bool show_only_best_grasp;
+	std::string base_frame_default;
 
 	void get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr& pc_in);
 	void open_pcd_and_trig_get_grasp_cb(std_msgs::String pcd_path);
@@ -106,6 +107,10 @@ public:
 		// define if only the best grasp should be visualized (respectively take bool value from launch file)
 		nh_.param("show_only_best_grasp", this->show_only_best_grasp, true);
 
+		// set default cloud frame (if cloud is generated from pcd)
+
+		nh_.param("base_frame", this->base_frame_default, std::string("base_link"));
+
 		//subscriber for the point cloud
 		std::string input_pc_topic = "/haf_grasping/depth_registered/single_cloud/points_in_lcs";
 		nh_.param("input_pc_topic", input_pc_topic, input_pc_topic);
@@ -138,7 +143,7 @@ void CCalcGrasppointsClient::open_pcd_and_trig_get_grasp_cb(std_msgs::String pcd
   //transform pcl to ros-msg
   sensor_msgs::PointCloud2 pcd_as_ros_msg;// = new sensor_msgs::PointCloud2ConstPtr();
   pcl::toROSMsg(*cloud, pcd_as_ros_msg);
-  pcd_as_ros_msg.header.frame_id = "base_link";
+  pcd_as_ros_msg.header.frame_id = this->base_frame_default /*"base_link"*/;
   pcd_as_ros_msg.header.stamp = ros::Time(0);
   const sensor_msgs::PointCloud2ConstPtr pcd_as_ros_msg_const_ptr = boost::make_shared<sensor_msgs::PointCloud2>(pcd_as_ros_msg);
   CCalcGrasppointsClient::get_grasp_cb(pcd_as_ros_msg_const_ptr);

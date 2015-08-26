@@ -136,6 +136,7 @@ public:
 	bool point_inside_box_grid[ROLL_MAX_DEGREE/ROLL_STEPS_DEGREE][TILT_STEPS][HEIGHT][WIDTH];	//saves for which points featurevector is calculated
  	string outputpath_full;
  	bool return_only_best_gp;
+ 	string base_tf;						//base frame for calculation of grasps
  	int graspval_th; 					//treshold if grasp hypothesis should be returned
  	int graspval_top;					//optimal grasp evaluation possible
  	int graspval_max_diff_for_pub;
@@ -192,6 +193,7 @@ public:
 		this->max_duration_for_grasp_calc = 50; 	//max calculation time before restult is returned (in sec)
 		outputpath_full = "/tmp/features.txt";
 		this->return_only_best_gp = false;
+		this->base_tf = "/base_link";
 		graspval_th = 70;					//treshold if grasp hypothesis should be returned (in function - so program internal) (for top result of one loop run)
 		graspval_top = 119;
 		graspval_max_diff_for_pub = 80;		//if the value of grasps is more than graspval_max_diff_for_pub lower than optimal value graspval_top, nothing gets published (for top result of one whole roll run)
@@ -263,6 +265,10 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	// set if only the best grasp should be visualized
 	this->return_only_best_gp = (bool) goal->graspinput.show_only_best_grasp;
 	cout << " --> SET show_only_best_grasp TO:  " << this->return_only_best_gp << endl;
+
+	// set frame_id needed as base frame for calculation
+	this->base_tf = (string) goal->graspinput.input_pc.header.frame_id;
+	cout << " --> FRAME_ID: " << this->base_tf << endl;
 
 	cout << "Fixed by now: this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
 	cout << "************************************************************************************************************" << endl;
@@ -1058,7 +1064,7 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 	transform.setOrigin(origin);
 	transform.setRotation(tfqt);
 
-	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "base_link", tmp_tf_help));
+	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->base_tf/*"base_link"*/, tmp_tf_help));
 
 	if (pub_grid){
 		std::stringstream ss;
@@ -1195,7 +1201,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 	    			break;
 	    		 }
 	    case 4 : {  // draw grasp approach direction (black arrow)
-	    			(*marker).header.frame_id = "base_link";
+	    			(*marker).header.frame_id = this->base_tf /*"base_link"*/;
 					(*marker).id = fix_marker_id_gripper_appr_dir;
 					(*marker).type = visualization_msgs::Marker::ARROW;
 					(*marker).action = visualization_msgs::Marker::ADD;
