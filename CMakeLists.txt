@@ -18,7 +18,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions 
   pcl_ros
   tf
-#  nav_msgs
   pcl_msgs    
 )
 
@@ -134,10 +133,6 @@ link_directories(${PCL_LIBRARY_DIRS})
 # add_executable(calc_grasppoints_svm_node src/calc_grasppoints_svm_node.cpp)
 
 
-## Add cmake target dependencies of the executable/library
-## as an example, message headers may need to be generated before nodes
-# add_dependencies(calc_grasppoints_svm_node calc_grasppoints_svm_generate_messages_cpp)
-
 
 add_library(CHaarFeature src/CHaarFeature.cpp)
 add_library(CIntImage_to_Featurevec src/CIntImage_to_Featurevec.cpp)
@@ -147,10 +142,18 @@ add_executable(calc_grasppoints_action_client src/calc_grasppoints_action_client
 
 
 
+
 target_link_libraries(CIntImage_to_Featurevec CHaarFeature ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 #target_link_libraries(calc_grasppoints CIntImage_to_Featurevec ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 target_link_libraries(calc_grasppoints_action_server CIntImage_to_Featurevec ${catkin_LIBRARIES} ${OpenCV_LIBS} ${PCL_LIBRARIES})
 target_link_libraries(calc_grasppoints_action_client ${catkin_LIBRARIES} )
+
+
+## Add cmake target dependencies of the executable/library
+## as an example, message headers may need to be generated before nodes
+# add_dependencies(calc_grasppoints_svm_node calc_grasppoints_svm_generate_messages_cpp)
+
+add_dependencies(calc_grasppoints_action_client ${catkin_EXPORTED_TARGETS})
 
 
 ## Specify libraries to link a library or executable target against
