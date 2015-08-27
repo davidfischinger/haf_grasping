@@ -39,7 +39,7 @@
 	<rosparam param="input_pc_topic">/haf_grasping/depth_registered/single_cloud/points_in_lcs</rosparam>
 	
 	<!-- define default frame for point cloud (if generated from pcd) -->
-	<rosparam param="base_frame">base_link2</rosparam>
+	<rosparam param="base_frame">base_link</rosparam>
 	
 </launch>
 
