@@ -154,6 +154,10 @@ public:
 	Eigen::Matrix4f av_trans_mat;	//transformation matrix for approach vector
 	float trans_z_after_pc_transform; // additional translation in z-axis direction to guarantee that all height values are bigger zero (for haf-calculation)
 	tf::Quaternion quat_tf_to_tf_help;	//saves quaternion for axis transformation
+	string feature_file_path;		//path to files of Features (Features.txt)
+	string range_file_path;
+	string svmmodel_file_path;
+	int nr_features_without_shaf;
 
 
  	void print_heights(int nr_roll, int nr_tilt);
@@ -208,6 +212,16 @@ public:
 		this->print_heights_bool = false;
 		this->av_trans_mat = Eigen::Matrix4f::Identity();;	//transformation matrix for approach vector
 		this->trans_z_after_pc_transform = 0.15;
+
+		//parameter for svm classification
+		this->feature_file_path = "";
+		nh_.param("feature_file_path", this->feature_file_path, this->feature_file_path);
+		this->range_file_path = "";
+		nh_.param("range_file_path", this->range_file_path, this->range_file_path);
+		this->svmmodel_file_path = "";
+		nh_.param("svmmodel_file_path", this->svmmodel_file_path, this->svmmodel_file_path);
+		this->nr_features_without_shaf = 302;	//default value
+		nh_.param("nr_features_without_shaf", this->nr_features_without_shaf, this->nr_features_without_shaf);
 
 	    as_.start();
 	}
@@ -598,7 +612,11 @@ void CCalc_Grasppoints::calc_featurevectors(int roll, int tilt)
 
 	string pkg_path = ros::package::getPath("haf_grasping");
 	//read all features (saved in external file)
-	ii_to_fv->read_features(pkg_path);
+	//ii_to_fv->read_features(pkg_path); feature_file_path
+	if (this->feature_file_path == ""){
+		this->feature_file_path = pkg_path + "/data/Features.txt";	//path to default Features
+	}
+	ii_to_fv->read_features(this->feature_file_path);
 
 	//silly way to delete file
 	ofstream output_fv_file(outputpath_full.c_str());
@@ -622,7 +640,7 @@ void CCalc_Grasppoints::calc_featurevectors(int roll, int tilt)
 			}
 
 			//calculate featurevector and write it in file
-			ii_to_fv->write_featurevector(outputpath_full.c_str());
+			ii_to_fv->write_featurevector(outputpath_full.c_str(), this->nr_features_without_shaf);
 		}
 	}
 }
@@ -733,7 +751,18 @@ void CCalc_Grasppoints::predict_bestgp_withsvm(bool svm_with_probability){
 
 		//scale: use existing scaling file to scale feature values
 		stringstream ss, ss2;
-		ss << pkg_path << "/libsvm-3.12/svm-scale -r " << pkg_path << "/data/range21062012_allfeatures /tmp/features.txt > /tmp/features.txt.scale";
+
+
+
+		if (this->range_file_path == ""){
+			this->range_file_path = pkg_path + "/data/range21062012_allfeatures";	//path to default range file
+		}
+
+		if (this->svmmodel_file_path == ""){
+			this->svmmodel_file_path = pkg_path + "/data/all_features.txt.scale.model";	//path to default svm model file
+		}
+
+		ss << pkg_path << "/libsvm-3.12/svm-scale -r " << this->range_file_path << " /tmp/features.txt > /tmp/features.txt.scale";
 		string command = ss.str();
 		int i = system(command.c_str());
 		if (i != 0){
@@ -744,7 +773,7 @@ void CCalc_Grasppoints::predict_bestgp_withsvm(bool svm_with_probability){
 		//predict grasping points
 		if (!svm_with_probability){
 			//	trained with all examples
-			ss2 << pkg_path << "/libsvm-3.12/svm-predict /tmp/features.txt.scale " << pkg_path << "/data/all_features.txt.scale.model /tmp/output_calc_gp.txt";
+			ss2 << pkg_path << "/libsvm-3.12/svm-predict /tmp/features.txt.scale " << this->svmmodel_file_path << " /tmp/output_calc_gp.txt";
 			string command2 = ss2.str();
 			i = system(command2.c_str());
 		} else {

@@ -66,10 +66,10 @@ public:
 
 
 	void print_heights();
-	void read_features(string packagepath);
+	void read_features(string featurespath);
 	void print_features();
-	void write_featurevector(string outputpath);
-	float calc_featurevalue(int nr_feat);
+	void write_featurevector(string outputpath, int nr_features_without_shaf);
+	float calc_featurevalue(int nr_feat, int nr_features_without_shaf);
 
 
 	CIntImage_to_Featurevec();

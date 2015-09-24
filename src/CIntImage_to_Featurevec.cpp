@@ -24,9 +24,7 @@
  *
  *    HEIGHT 15 (14+1)
  *    WIDTH 15 (14+1)
- *    pathout = "/home/grasp/David/GPDatabase/badgps/twocams/featurevec/"; => not used anymore, comes from grasp action server now
  *    goodgps		indicates if features for good or bad GPs are calculated => label +1/-1 in output .txt
- *	  path =    "/opt/ros/privat/stacks/toolsdf/CeditFeatures_input.txt";       //file with Haar-Features
  */
 
 #include <CIntImage_to_Featurevec.h>
@@ -46,10 +44,10 @@ CIntImage_to_Featurevec::CIntImage_to_Featurevec(){
 }
 
 
-void CIntImage_to_Featurevec::read_features(string packagepath)
+void CIntImage_to_Featurevec::read_features(string featurespath)
 {
 	//PARAMETERS
-	string path = packagepath+"/data/Features.txt";
+	string path = featurespath;
 
  	ifstream file_features;
  	file_features.open(path.c_str());	//file_features: file with all features
@@ -63,7 +61,7 @@ void CIntImage_to_Featurevec::read_features(string packagepath)
 	while (file_features.good())
 	{
 		int start = 0, end = 0;
-		int reg_c[16];				//region_corners
+		int reg_c[16];	//region_corners
 		float reg_w[4];	//region_weights
 		id_x++;
 		for (int i = 0; i < 16; i++){
@@ -121,7 +119,7 @@ void CIntImage_to_Featurevec::print_heights()
 
 
 
-void CIntImage_to_Featurevec::write_featurevector(string outputpath)
+void CIntImage_to_Featurevec::write_featurevector(string outputpath, int nr_features_without_shaf)
 {
     //open output file
 	ofstream output_fv_file(outputpath.c_str(), fstream::app);
@@ -131,7 +129,7 @@ void CIntImage_to_Featurevec::write_featurevector(string outputpath)
 		output_fv_file << "-1";
 	//for all features
 	for (int nr_feat = 0; nr_feat < this->allfeatures.size(); nr_feat++){
-		float featureval = calc_featurevalue(nr_feat);
+		float featureval = calc_featurevalue(nr_feat, nr_features_without_shaf);
 		output_fv_file << " " << nr_feat+1 << ":" << setprecision(4) << featureval;
 	}
 	output_fv_file << "\n";
@@ -140,11 +138,11 @@ void CIntImage_to_Featurevec::write_featurevector(string outputpath)
 
 
 
-float CIntImage_to_Featurevec::calc_featurevalue(int nr_feat)
+float CIntImage_to_Featurevec::calc_featurevalue(int nr_feat, int nr_features_without_shaf)
 {
 	float returnval = 0;
 	this->currentfeature = &this->allfeatures.at(nr_feat);
-	if (nr_feat < 302)
+	if (nr_feat < nr_features_without_shaf)
 	{
 		for (int nr_reg = 0; nr_reg <4; nr_reg++){
 			//corners of region
@@ -163,8 +161,8 @@ float CIntImage_to_Featurevec::calc_featurevalue(int nr_feat)
 			returnval += wgt*(this->intimagemat[x2+1][y2+1] - this->intimagemat[x1][y2+1] -
 						  this->intimagemat[x2+1][y1] + this->intimagemat[x1][y1]);
 		}
-	} else {//new (symetry) features
-		//new features which check if top and bottum of grasparea are symmetric
+	} else {//new (symmetry) features
+		//new features to check if top and bottom of grasp area are symmetric
 		float r[3];	//r[0]: top field, r[1] middle, r[2]: bottom/down
 		r[0] = r[1] = r[2] = 0;
 		for (int nr_reg = 0; nr_reg <3; nr_reg++){ //assuming 3 regions
