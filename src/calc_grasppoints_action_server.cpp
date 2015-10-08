@@ -117,7 +117,6 @@ protected:
 public:
 	ros::Subscriber box_position_sub;	//subscriber for x and y coordinates of the box center and the rotation
 	ros::Subscriber pc_sub;				//subscriber for the point cloud (point of objects without basket)
-	ros::Publisher pubInputPCPCL;
 	ros::Publisher pubInputPCROS;
 	ros::Publisher pubTransformedPCROS;	//publisher for transformed point cloud for visualization purpose
 	ros::Publisher pubGraspPoints;		//publisher for grasp points
@@ -185,7 +184,6 @@ public:
 		this->vis_pub_ma_params = nh_.advertise<visualization_msgs::MarkerArray>( "visualization_marker_array_grasp_params", 1 );	//MarkerArray for grasp params
 		this->pubInputPCROS = nh_.advertise<sensor_msgs::PointCloud2>( "/haf_grasping/calc_gp_as_inputpcROS", 1);
 		this->pubTransformedPCROS = nh_.advertise<sensor_msgs::PointCloud2>( "/haf_grasping/transformed_point_cloud",1);
-		this->pubInputPCPCL = nh_.advertise<sensor_msgs::PointCloud2>( "/calc_gp_as_inputpcPCL", 1);
 		this->graspsearchcenter.x = 0;	//default value
 		this->graspsearchcenter.y = 0;	//default value
 		this->graspsearchcenter.z = 0;	//default value
