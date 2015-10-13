@@ -1,0 +1,3 @@
+int32 gripper_opening_width			# factor f that is used for scaling point cloud to imitate pre-gripper opening width of 1/f
+---
+bool result
