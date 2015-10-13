@@ -30,6 +30,7 @@
 #include <haf_grasping/GraspCalculationTimeMax.h>
 #include <haf_grasping/GraspApproachVector.h>
 #include <haf_grasping/ShowOnlyBestGrasp.h>
+#include <haf_grasping/GraspPreGripperOpeningWidth.h>
 // for reading pcd file
 #include <iostream>
 #include <pcl/io/pcd_io.h>
@@ -51,6 +52,7 @@ public:
 	ros::ServiceServer srv_set_grasp_calculation_time_max;	// service to set maximal grasp calculation time (sec) before result is returned
 	ros::ServiceServer srv_set_approach_vector;			// service to set approach vector for grasping (only direction hand is approaching, not roll angle)
 	ros::ServiceServer srv_set_show_only_best_grasp;	// service to set show_only_best_grasp bool variable
+	ros::ServiceServer srv_set_gripper_width;			// service to set factor f that is used for scaling point cloud to imitate pre-gripper opening width of 1/f
 	geometry_msgs::Point graspsearchcenter;				// center for searching for grasps
 	geometry_msgs::Vector3 approach_vector;				// defines the direction from where a grasp should be executed
 	int grasp_search_size_x;			// the size (x direction) where grasps are really calculated (in each direction 7cm more are needed for feature calculation!
@@ -60,6 +62,7 @@ public:
 	ros::Duration grasp_calculation_time_max;	//max time used for grasp calculation (sec) before result is returned
 	bool show_only_best_grasp;
 	std::string base_frame_default;
+	int gripper_opening_width; 			//defines pre-grasp gripper opening width
 
 	void get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr& pc_in);
 	void open_pcd_and_trig_get_grasp_cb(std_msgs::String pcd_path);
@@ -68,6 +71,7 @@ public:
 	bool set_grasp_calculation_time_max(haf_grasping::GraspCalculationTimeMax::Request &req, haf_grasping::GraspCalculationTimeMax::Response &res);
 	bool set_approach_vector(haf_grasping::GraspApproachVector::Request &req, haf_grasping::GraspApproachVector::Response &res);
 	bool set_show_only_best_grasp(haf_grasping::ShowOnlyBestGrasp::Request &req, haf_grasping::ShowOnlyBestGrasp::Response &res);
+	bool set_gripper_width(haf_grasping::GraspPreGripperOpeningWidth::Request &req,	haf_grasping::GraspPreGripperOpeningWidth::Response &res);
 
 	CCalcGrasppointsClient(ros::NodeHandle nh_)
 	{
@@ -110,6 +114,9 @@ public:
 		// set default cloud frame (if cloud is generated from pcd)
 
 		nh_.param("base_frame", this->base_frame_default, std::string("base_link"));
+		// set gripper opening with factor => 1/gripper opening width is tested
+		nh_.param("gripper_width", this->gripper_opening_width, 1);
+
 
 		//subscriber for the point cloud
 		std::string input_pc_topic = "/haf_grasping/depth_registered/single_cloud/points_in_lcs";
@@ -122,7 +129,7 @@ public:
 		this->srv_set_grasp_calculation_time_max = nh_.advertiseService("/haf_grasping/set_grasp_calculation_time_max", &CCalcGrasppointsClient::set_grasp_calculation_time_max,this);
 		this->srv_set_approach_vector = nh_.advertiseService("/haf_grasping/set_approach_vector", &CCalcGrasppointsClient::set_approach_vector, this);
 		this->srv_set_show_only_best_grasp = nh_.advertiseService("/haf_grasping/set_show_only_best_grasp", &CCalcGrasppointsClient::set_show_only_best_grasp, this);
-
+		this->srv_set_gripper_width = nh_.advertiseService("/haf_grasping/set_gripper_opening_width", &CCalcGrasppointsClient::set_gripper_width, this);
 	}
 };
 
@@ -181,6 +188,9 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 
 	// set if only best grasp should be visualized
 	goal.graspinput.show_only_best_grasp = this->show_only_best_grasp;
+
+	// set pre-grasp gripper opening width (factor for scaling pc)
+	goal.graspinput.gripper_opening_width = this->gripper_opening_width;
 
 	//send goal
 	ac.sendGoal(goal);
@@ -276,6 +286,19 @@ bool CCalcGrasppointsClient::set_show_only_best_grasp(haf_grasping::ShowOnlyBest
 	ROS_INFO("sending back response: [%d]", (int)res.result);
 	return res.result;
 }
+
+//set maximal grasp calculation time before result has to be returned
+bool CCalcGrasppointsClient::set_gripper_width(haf_grasping::GraspPreGripperOpeningWidth::Request &req,
+		haf_grasping::GraspPreGripperOpeningWidth::Response &res)
+{
+	//set pre-grasp gripper opening width
+	this->gripper_opening_width = req.gripper_opening_width;
+	ROS_INFO("Set gripper_opening_width (factor for scaling pc) to: x=%d", (int)req.gripper_opening_width);
+	res.result = true;
+	ROS_INFO("sending back response: [%d]", (int)res.result);
+	return res.result;
+}
+
 
 int main (int argc, char **argv)
 {

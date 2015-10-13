@@ -157,6 +157,7 @@ public:
 	string range_file_path;
 	string svmmodel_file_path;
 	int nr_features_without_shaf;
+	int gripper_opening_width;
 
 
  	void print_heights(int nr_roll, int nr_tilt);
@@ -210,6 +211,7 @@ public:
 		this->print_heights_bool = false;
 		this->av_trans_mat = Eigen::Matrix4f::Identity();;	//transformation matrix for approach vector
 		this->trans_z_after_pc_transform = 0.15;
+		this->gripper_opening_width = 1;
 
 		//parameter for svm classification
 		this->feature_file_path = "";
@@ -273,6 +275,9 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	// set maximal calculation time
 	this->max_duration_for_grasp_calc = (float) goal->graspinput.max_calculation_time.toSec();
 	cout << " --> SET MAX. CALCULATION TIME TO: " <<  this->max_duration_for_grasp_calc << endl;
+
+	// set pre-grasp gripper opening width (factor f for scaling pc to imitate gripper opening width of 1/f of maximum)
+	this->gripper_opening_width = (float) goal->graspinput.gripper_opening_width;
 
 	// set if only the best grasp should be visualized
 	this->return_only_best_gp = (bool) goal->graspinput.show_only_best_grasp;
@@ -412,20 +417,22 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	//cout <<  "\nApproach vector: [" << av->x << "," << av->y << "," << av->z << "]" << endl;
 
 	Eigen::Matrix4f mat_sh_to_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from search center to origin
-	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc and then shifts pc back to box center
-	Eigen::Matrix4f mat_tilt = Eigen::Matrix4f::Identity(); //matrix which tilts pc  NEW
+	Eigen::Matrix4f mat_rot_z_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about z-axis)
+	Eigen::Matrix4f mat_rot_x_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about x-axis)
 	Eigen::Matrix4f mat_sh_from_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from origin to basket center
+	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc and then shifts pc back to box center
+	Eigen::Matrix4f mat_scale_x_dir = Eigen::Matrix4f::Identity();//NEW grippertest: scale point cloud
+
 	Eigen::Matrix4f mat_transform = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about box center)
 
-	Eigen::Matrix4f mat_rot_z_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about z-axis)
-	Eigen::Matrix4f mat_rot_y_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about y-axis)
-	Eigen::Matrix4f mat_rot_x_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about x-axis)
 
+	mat_scale_x_dir(0,0) = this->gripper_opening_width;	//NEW grippertest: scale point cloud in x-axis direction
 
 	mat_sh_to_orig(0,3) = -this->graspsearchcenter.x;	//shift x value
 	mat_sh_to_orig(1,3) = -this->graspsearchcenter.y;	//shift y-value
 	mat_sh_to_orig(2,3) = -this->graspsearchcenter.z;	//shift z-value
-	mat_sh_from_orig(0,3) = 0;// this->graspsearchcenter.x;			//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1 17.8.2015
+
+	mat_sh_from_orig(0,3) = 0;// this->graspsearchcenter.x;			//!!!! 17.8.2015
 	mat_sh_from_orig(1,3) = 0;//this->graspsearchcenter.y;
 	mat_sh_from_orig(2,3) = /*this->graspsearchcenter.z*/0 + this->trans_z_after_pc_transform;	//move pc up to make calculation possible
 
@@ -468,7 +475,8 @@ void CCalc_Grasppoints::generate_grid(int roll, int tilt, pcl::PointCloud<pcl::P
 	mat_rot_x_axis(2,2) = cos(rot_about_x);
 
 	// transforms pc in a way that the old coordinate system is transformed to the new one by rotation about first: z-axis, second (new) x-axis
-	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
+	//NEW: point cloud scaling for gripper opening
+	mat_transform = mat_scale_x_dir * mat_rot* mat_sh_from_orig * mat_rot_x_axis * mat_rot_z_axis * mat_sh_to_orig;     //define transformation matrix mat_transform
 	this->av_trans_mat = mat_transform;	//class variable to transform visualization stuff
 
 
@@ -1071,7 +1079,7 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 	mat_rot_x_axis(2,2) = cos(rot_x);
 
 	// transforms in a way that the old coordinate system is transformed to the new one by rotation about first: z-axis, second (new) x-axis
-	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
+	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //define transformation matrix mat_transform
 
 
 	//stupid data conversion from Eigen::Matrix4f to tf::Transform
@@ -1262,30 +1270,28 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int id_col_top_all,int nr_roll_top_all, int nr_tilt_top_all, int scaled_gp_eval){
 	cout << "\n ===> transform_gp_in_wcs_and_publish(): TRANSFORM FOUND GRASP" << endl;
 	Eigen::Matrix4f mat_sh_to_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from center to origin
-	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc
-	Eigen::Matrix4f mat_tilt = Eigen::Matrix4f::Identity(); //matrix which tilts pc
+	Eigen::Matrix4f mat_rot_z_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about z-axis)
+	Eigen::Matrix4f mat_rot_x_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about x-axis)
 	Eigen::Matrix4f mat_sh_from_orig = Eigen::Matrix4f::Identity(); //matrix which defines shift of point cloud from origin to center
+	Eigen::Matrix4f mat_rot = Eigen::Matrix4f::Identity(); //matrix which rotates pc
+	Eigen::Matrix4f mat_scale_x_dir = Eigen::Matrix4f::Identity();//NEW grippertest: scale point cloud
+
 	Eigen::Matrix4f mat_transform = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about box center)
+
 	Eigen::Matrix3f mat_rot_for_appr_vec = Eigen::Matrix3f::Identity(); //matrix which makes the rotation for the approximation vector
 
 	float rot_about_z;		//rotation needed about z-axis to align y-axis (old cs) with orthoganal projection of new z-axis on x-y-plane (rad)
 	float rot_about_x = 0;  //rotation needed to align z axis old with z-axis new after rot_about_z was executed (this way old x-axis keeps direction in x-y-plane) (rad)
 
-
-	Eigen::Matrix4f mat_rot_z_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about z-axis)
-	Eigen::Matrix4f mat_rot_y_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about y-axis)
-	Eigen::Matrix4f mat_rot_x_axis = Eigen::Matrix4f::Identity(); //matrix for transformation of pointcloud (rotation about x-axis)
-
+	mat_scale_x_dir(0,0) = this->gripper_opening_width;	//NEW grippertest: scale point cloud in x-axis direction
 
 	mat_sh_to_orig(0,3) = -this->graspsearchcenter.x;	//shift x value
 	mat_sh_to_orig(1,3) = -this->graspsearchcenter.y;	//shift y-value
 	mat_sh_to_orig(2,3) = -this->graspsearchcenter.z;	//shift z-value
+
 	mat_sh_from_orig(0,3) = 0;//this->graspsearchcenter.x;
 	mat_sh_from_orig(1,3) = 0;//this->graspsearchcenter.y;
 	mat_sh_from_orig(2,3) = 0/*this->graspsearchcenter.z*/ + this->trans_z_after_pc_transform;	//move pc up to make calculation possible
-
-
-	//cout << "\n Fixed this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
 
 	if (this->approach_vector.y == 0 and this->approach_vector.x == 0){	//if this->approach_vector.y = this->approach_vector.x = 0
 		rot_about_z = 0;
@@ -1321,7 +1327,7 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 	mat_rot_x_axis(2,2) = cos(rot_about_x);
 
 	// transforms in a way that the old coordinate system is transformed to the new one by rotation about first: z-axis, second (new) x-axis
-	mat_transform = mat_rot*mat_sh_from_orig*mat_rot_x_axis*mat_rot_z_axis*mat_sh_to_orig;     //mat_rot*mat_tilt;  //define transformation matrix mat_transform
+	mat_transform = mat_scale_x_dir * mat_rot * mat_sh_from_orig * mat_rot_x_axis * mat_rot_z_axis * mat_sh_to_orig;     //define transformation matrix mat_transform
 
 
 	cout << " ---> id_row_top_all: " << id_row_top_all << "\t" << "id_col_top_all: " << id_col_top_all << "\t and rotation: " << nr_roll_top_all*ROLL_STEPS_DEGREE << "  tilt_top: " << nr_tilt_top_all <<endl;
@@ -1380,11 +1386,11 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 	visualization_msgs::MarkerArray ma_best_params;
 	//show grasp params (grasp search field size, gripper closing direction)
 	for (int i = 3; i <= 3; i++){	//closing direction (red line) for best grasp
-		grasp_area_to_marker(&marker_best_params, (gp1[0]+gp2[0])/2,(gp1[1]+gp2[1])/2,(gp1[2]+gp2[2])/2, 1 /*gripperwidth*/, nr_roll_top_all, i /*param_id*/, true /*top_grasp*/ );   //add best grasping direction to marker
+		grasp_area_to_marker(&marker_best_params, (gp1[0]+gp2[0])/2,(gp1[1]+gp2[1])/2,(gp1[2]+gp2[2])/2, this->gripper_opening_width /*gripperwidth*/, nr_roll_top_all, i /*param_id*/, true /*top_grasp*/ );   //add best grasping direction to marker
 		ma_best_params.markers.push_back(marker_best_params);
 	}
 	for (int i = 4; i <= 4; i++){	//approach vector (black arrow) for best grasp
-		grasp_area_to_marker(&marker_best_params, (gp1_wcs[0]+gp2_wcs[0])/2,(gp1_wcs[1]+gp2_wcs[1])/2,(gp1_wcs[2]+gp2_wcs[2])/2, 1 /*gripperwidth*/, nr_roll_top_all, i /*param_id*/, true /*top_grasp*/ );   //add best grasping direction to marker
+		grasp_area_to_marker(&marker_best_params, (gp1_wcs[0]+gp2_wcs[0])/2,(gp1_wcs[1]+gp2_wcs[1])/2,(gp1_wcs[2]+gp2_wcs[2])/2, this->gripper_opening_width /*gripperwidth*/, nr_roll_top_all, i /*param_id*/, true /*top_grasp*/ );   //add best grasping direction to marker
 		ma_best_params.markers.push_back(marker_best_params);
 	}
 	vis_pub_ma_params.publish(ma_best_params);	//publish best grasp parameter

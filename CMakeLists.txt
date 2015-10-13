@@ -70,6 +70,7 @@ add_service_files(
    GraspCalculationTimeMax.srv
    GraspApproachVector.srv
    ShowOnlyBestGrasp.srv
+   GraspPreGripperOpeningWidth.srv
 )
 
 ## Generate actions in the 'action' folder
