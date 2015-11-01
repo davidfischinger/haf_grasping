@@ -19,7 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   tf
   pcl_msgs
-  message_generation  
+  message_generation
+  visualization_msgs  
 )
 
 find_package(OpenCV REQUIRED)
@@ -89,6 +90,7 @@ generate_messages(
    std_msgs
    sensor_msgs
    geometry_msgs
+   visualization_msgs
  )
 
 ###################################
@@ -104,11 +106,15 @@ catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES haf_grasping
   CATKIN_DEPENDS 
+        actionlib
 	actionlib_msgs 
 	std_msgs 
 	geometry_msgs
+        message_runtime
 	pcl_conversions
 	pcl_ros
+        sensor_msgs
+        visualization_msgs
 #  DEPENDS system_lib
 )
 
