@@ -61,8 +61,8 @@
 #include "tf/LinearMath/Transform.h"
 //PCL includes
 #include <pcl_ros/point_cloud.h>
-//#include "pcl_ros/transforms.h"
-//#include "pcl_ros/publisher.h"
+#include "pcl_ros/transforms.h"
+#include "pcl_ros/publisher.h"
 #include "/usr/include/pcl-1.7/pcl/io/io.h"
 #include "pcl/point_types.h"
 #include "pcl/point_cloud.h"
@@ -284,19 +284,19 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	cout << " --> SET show_only_best_grasp TO:  " << this->return_only_best_gp << endl;
 
 	// set frame_id needed as base frame for calculation
-	this->base_tf = (string) goal->graspinput.input_pc.header.frame_id;
-	cout << " --> FRAME_ID: " << this->base_tf << endl;
+	string orig_tf = (string) goal->graspinput.input_pc.header.frame_id;
+	cout << " --> FRAME_ID ORIGINAL Point Cloud: " << orig_tf << endl;
 
 	cout << "Fixed by now: this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
 	cout << "************************************************************************************************************" << endl;
 
 	//search for tf transform between camera ("frame") and robot ("base_link") coordinate system
-	//ros::Time now = ros::Time::now();
-	//bool foundTransform = tf_listener.waitForTransform(/*req.frame_id_desired.data.c_str()*/"/base_link", /*req.frame_id_original.data.c_str()*/"frame", now, ros::Duration(1.0));
-	//if (!foundTransform)
-	//{
-	//	ROS_WARN(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): NO TRANSFORM FOR POINT CLOUD FOUND");
-	//}
+	ros::Time now = ros::Time::now();
+	bool foundTransform = tf_listener.waitForTransform(/*req.frame_id_desired.data.c_str()*/"/base_link", /*req.frame_id_original.data.c_str()*/orig_tf, now, ros::Duration(1.0));
+	if (!foundTransform)
+	{
+		ROS_WARN(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): NO TRANSFORM FOR POINT CLOUD FOUND");
+	}
 
 	//ROS_INFO(tf_listener);
 	//ROS_INFO(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): TRANSFORM FOR POINT CLOUD FOUND");
@@ -304,9 +304,13 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in_old_cs;
 	pcl::fromROSMsg(goal->graspinput.input_pc, pcl_cloud_in_old_cs); // transform ROS msg into PCL-pointcloud
 
-	//pcl_ros::transformPointCloud(/*req.frame_id_desired.data.c_str()*/"/base_link", pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
+	pcl_ros::transformPointCloud(/*req.frame_id_desired.data.c_str()*/"/base_link", pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
 	//pcl_cloud_in = pc_new_cs;
 
+
+	// set frame_id needed as base frame for calculation
+	this->base_tf = (string) pc_new_cs.header.frame_id;
+	cout << " --> FRAME_ID: " << this->base_tf << endl;
 
 
 	//publish input pc:
@@ -319,8 +323,8 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	nr_tilt_top_overall = -1;
 	topval_gp_overall = -1000;
 
-	//loop_control(pcl_cloud_in);
-	loop_control(pcl_cloud_in_old_cs);
+	loop_control(pc_new_cs);
+	//loop_control(pcl_cloud_in_old_cs);
 }
 
 
