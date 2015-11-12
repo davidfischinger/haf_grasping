@@ -62,6 +62,7 @@ find_package(OpenCV REQUIRED)
 add_message_files(
    FILES
    GraspInput.msg
+   GraspOutput.msg
 )
 
 ## Generate services in the 'srv' folder

@@ -146,7 +146,7 @@ public:
 	int nr_tilt_top_overall;
 	int topval_gp_overall;
 	int marker_cnt;
-	string gp_result; //saves return values for ActionServer
+        haf_grasping::GraspOutput gp_result; //saves return values for ActionServer
 	tf::TransformListener tf_listener;
 	bool visualization;
 	bool print_heights_bool; //indicates if grid heights should be printed on screen
@@ -206,7 +206,6 @@ public:
 		nr_tilt_top_overall = -1;
 		topval_gp_overall = -1000;
 		marker_cnt = 0;
-		this->gp_result = "";
 		this->visualization = true;
 		this->print_heights_bool = false;
 		this->av_trans_mat = Eigen::Matrix4f::Identity();;	//transformation matrix for approach vector
@@ -394,8 +393,8 @@ void CCalc_Grasppoints::loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in
 
     if(success)	// ActionServer: return grasp representation (overall best grasp)
     {
-      result_.result.data = this->gp_result; //ss.str();
-      ROS_INFO("%s: Succeeded", this->gp_result.c_str());
+      result_.graspOutput = this->gp_result;
+      ROS_INFO_STREAM("Succeeded:\n" << this->gp_result);
       // set the action state to succeeded
       as_.setSucceeded(result_);
     }
@@ -1379,11 +1378,25 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 
 	//Publish grasp points
 	std_msgs::String msgStrPoints;
-    std::stringstream ss;
+        std::stringstream ss;
 
     ss << scaled_gp_eval << " " << gp1_wcs[0] <<" "<< gp1_wcs[1] << " "<< gp1_wcs[2] << " "<< gp2_wcs[0] << " " << gp2_wcs[1] << " " << gp2_wcs[2] << " "<< appr_vec(0) << " "<< appr_vec(1) << " "<< appr_vec(2) << " " << (gp1_wcs[0]+gp2_wcs[0])/2.0 <<" " << (gp1_wcs[1]+gp2_wcs[1])/2.0 <<" " << (gp1_wcs[2]+gp2_wcs[2])/2.0 <<" " << nr_roll_top_all*ROLL_STEPS_DEGREE;
  	msgStrPoints.data = ss.str();
- 	this->gp_result = ss.str();
+        this->gp_result.eval = scaled_gp_eval;
+        this->gp_result.graspPoint1.x = gp1_wcs[0];
+        this->gp_result.graspPoint1.y = gp1_wcs[1];
+        this->gp_result.graspPoint1.z = gp1_wcs[2];
+        this->gp_result.graspPoint1.x = gp2_wcs[0];
+        this->gp_result.graspPoint1.y = gp2_wcs[1];
+        this->gp_result.graspPoint1.z = gp2_wcs[2];
+        this->gp_result.averagedGraspPoint.x = (gp1_wcs[0]+gp2_wcs[0])/2.0;
+        this->gp_result.averagedGraspPoint.y = (gp1_wcs[1]+gp2_wcs[1])/2.0;
+        this->gp_result.averagedGraspPoint.z = (gp1_wcs[2]+gp2_wcs[2])/2.0;
+        this->gp_result.approachVector.x = appr_vec(0);
+        this->gp_result.approachVector.y = appr_vec(1);
+        this->gp_result.approachVector.z = appr_vec(2);
+        this->gp_result.roll = (nr_roll_top_all * ROLL_STEPS_DEGREE * PI) / 180; // degree->radians
+        this->gp_result.roll = (nr_roll_top_all * ROLL_STEPS_DEGREE); // degree->radians
 
  	//publish best grasp as rviz visualization_msgs::Marker
  	visualization_msgs::Marker marker_best_params;
