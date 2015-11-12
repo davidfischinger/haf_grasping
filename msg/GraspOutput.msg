@@ -5,4 +5,3 @@ geometry_msgs/Point graspPoint2
 geometry_msgs/Point averagedGraspPoint
 geometry_msgs/Vector3 approachVector
 float32 roll # radians
-float32 rollDeg

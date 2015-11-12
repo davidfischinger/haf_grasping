@@ -1396,7 +1396,6 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
         this->gp_result.approachVector.y = appr_vec(1);
         this->gp_result.approachVector.z = appr_vec(2);
         this->gp_result.roll = (nr_roll_top_all * ROLL_STEPS_DEGREE * PI) / 180; // degree->radians
-        this->gp_result.roll = (nr_roll_top_all * ROLL_STEPS_DEGREE); // degree->radians
 
  	//publish best grasp as rviz visualization_msgs::Marker
  	visualization_msgs::Marker marker_best_params;
