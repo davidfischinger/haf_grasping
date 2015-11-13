@@ -202,7 +202,7 @@ void CCalcGrasppointsClient::get_grasp_cb(const sensor_msgs::PointCloud2ConstPtr
 	{
 	    actionlib::SimpleClientGoalState state = ac.getState();
 	    boost::shared_ptr<const haf_grasping::CalcGraspPointsServerResult_<std::allocator<void> > > result = ac.getResult();
-	    ROS_INFO("Result: %s", (*(result)).result.data.c_str());
+	    ROS_INFO_STREAM("Result: %s" << (*(result)).graspOutput);
 	    ROS_INFO("Action finished: %s",state.toString().c_str());
 	}
 	else
