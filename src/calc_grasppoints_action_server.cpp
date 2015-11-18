@@ -9,7 +9,7 @@
  *
  *     This ActionServer calculates grasp points and approach vectors, given an input-goal
  *     (incl. point cloud and grasp search parameters such as the area where to search for grasps (center and size),
- *     goal frame_id for point cloud transformation, maximal calculation time, approach vector, ..).
+ *     goal_frame_id for point cloud transformation, maximal calculation time, approach vector, ..).
  *     In a first step for the given approach vector and different tested gripper rotations a height grid is created from the point cloud.
  *     For each 14x14 square of the height grid a feature vector is created.
  *     Using SVM with an existing model file, it is predicted if the center of the square is a good
@@ -135,7 +135,7 @@ public:
 	bool point_inside_box_grid[ROLL_MAX_DEGREE/ROLL_STEPS_DEGREE][TILT_STEPS][HEIGHT][WIDTH];	//saves for which points featurevector is calculated
  	string outputpath_full;
  	bool return_only_best_gp;
- 	string base_tf;						//base frame for calculation of grasps
+	string base_frame_id;					//base frame for calculation of grasps
  	int graspval_th; 					//treshold if grasp hypothesis should be returned
  	int graspval_top;					//optimal grasp evaluation possible
  	int graspval_max_diff_for_pub;
@@ -196,7 +196,7 @@ public:
 		this->max_duration_for_grasp_calc = 50; 	//max calculation time before restult is returned (in sec)
 		outputpath_full = "/tmp/features.txt";
 		this->return_only_best_gp = false;
-		this->base_tf = "/base_link";
+		// this->base_frame_id = "/base_link";
 		graspval_th = 70;					//treshold if grasp hypothesis should be returned (in function - so program internal) (for top result of one loop run)
 		graspval_top = 119;
 		graspval_max_diff_for_pub = 80;		//if the value of grasps is more than graspval_max_diff_for_pub lower than optimal value graspval_top, nothing gets published (for top result of one whole roll run)
@@ -287,30 +287,31 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	cout << " --> FRAME_ID ORIGINAL Point Cloud: " << orig_tf << endl;
 
 	cout << "Fixed by now: this->trans_z_after_pc_transform: " << this->trans_z_after_pc_transform << endl;
+
+        // set base_frame_id to goal_frame_id if set
+	if (!goal->graspinput.goal_frame_id.empty())
+        {
+            this->base_frame_id = goal->graspinput.goal_frame_id;
+        }
+	else
+        {
+            this->base_frame_id = "/base_link";
+        }
+        cout << " --> BASE_FRAME_ID: " << this->base_frame_id << endl;
+
 	cout << "************************************************************************************************************" << endl;
 
-	//search for tf transform between camera ("frame") and robot ("base_link") coordinate system
-	ros::Time now = ros::Time::now();
-	bool foundTransform = tf_listener.waitForTransform(/*req.frame_id_desired.data.c_str()*/"/base_link", /*req.frame_id_original.data.c_str()*/orig_tf, now, ros::Duration(1.0));
+	//search for tf transform between camera and robot coordinate system
+	bool foundTransform = tf_listener.waitForTransform(this->base_frame_id, orig_tf, goal->graspinput.input_pc.header.stamp, ros::Duration(1.0));
 	if (!foundTransform)
 	{
 		ROS_WARN(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): NO TRANSFORM FOR POINT CLOUD FOUND");
 	}
 
-	//ROS_INFO(tf_listener);
-	//ROS_INFO(" ==> calc_grasppoints_action_server.cpp: read_pc_cb(): TRANSFORM FOR POINT CLOUD FOUND");
-
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in_old_cs;
 	pcl::fromROSMsg(goal->graspinput.input_pc, pcl_cloud_in_old_cs); // transform ROS msg into PCL-pointcloud
 
-	pcl_ros::transformPointCloud(/*req.frame_id_desired.data.c_str()*/"/base_link", pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
-	//pcl_cloud_in = pc_new_cs;
-
-
-	// set frame_id needed as base frame for calculation
-	this->base_tf = (string) pc_new_cs.header.frame_id;
-	cout << " --> FRAME_ID: " << this->base_tf << endl;
-
+	pcl_ros::transformPointCloud(this->base_frame_id, pcl_cloud_in_old_cs, pc_new_cs, tf_listener);
 
 	//publish input pc:
 	this->pubInputPCROS.publish(goal->graspinput.input_pc);
@@ -323,7 +324,6 @@ void CCalc_Grasppoints::read_pc_cb(const haf_grasping::CalcGraspPointsServerGoal
 	topval_gp_overall = -1000;
 
 	loop_control(pc_new_cs);
-	//loop_control(pcl_cloud_in_old_cs);
 }
 
 
@@ -393,10 +393,10 @@ void CCalc_Grasppoints::loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in
 
     if(success)	// ActionServer: return grasp representation (overall best grasp)
     {
-      result_.graspOutput = this->gp_result;
-      ROS_INFO_STREAM("Succeeded:\n" << this->gp_result);
-      // set the action state to succeeded
-      as_.setSucceeded(result_);
+        result_.graspOutput = this->gp_result;
+        ROS_INFO_STREAM("Succeeded:\n" << this->gp_result);
+        // set the action state to succeeded
+        as_.setSucceeded(result_);
     }
 }
 
@@ -1102,7 +1102,7 @@ void CCalc_Grasppoints::gp_to_marker(visualization_msgs::Marker *marker, float x
 	transform.setOrigin(origin);
 	transform.setRotation(tfqt);
 
-	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->base_tf/*"base_link"*/, tmp_tf_help));
+	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), this->base_frame_id, tmp_tf_help));
 
 	if (pub_grid){
 		std::stringstream ss;
@@ -1239,7 +1239,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 	    			break;
 	    		 }
 	    case 4 : {  // draw grasp approach direction (black arrow)
-	    			(*marker).header.frame_id = this->base_tf /*"base_link"*/;
+                			(*marker).header.frame_id = this->base_frame_id;
 					(*marker).id = fix_marker_id_gripper_appr_dir;
 					(*marker).type = visualization_msgs::Marker::ARROW;
 					(*marker).action = visualization_msgs::Marker::ADD;
@@ -1382,6 +1382,8 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
 
     ss << scaled_gp_eval << " " << gp1_wcs[0] <<" "<< gp1_wcs[1] << " "<< gp1_wcs[2] << " "<< gp2_wcs[0] << " " << gp2_wcs[1] << " " << gp2_wcs[2] << " "<< appr_vec(0) << " "<< appr_vec(1) << " "<< appr_vec(2) << " " << (gp1_wcs[0]+gp2_wcs[0])/2.0 <<" " << (gp1_wcs[1]+gp2_wcs[1])/2.0 <<" " << (gp1_wcs[2]+gp2_wcs[2])/2.0 <<" " << nr_roll_top_all*ROLL_STEPS_DEGREE;
  	msgStrPoints.data = ss.str();
+        this->gp_result.header.stamp = ros::Time::now();
+        this->gp_result.header.frame_id = this->base_frame_id;
         this->gp_result.eval = scaled_gp_eval;
         this->gp_result.graspPoint1.x = gp1_wcs[0];
         this->gp_result.graspPoint1.y = gp1_wcs[1];
