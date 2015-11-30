@@ -196,7 +196,6 @@ public:
 		this->max_duration_for_grasp_calc = 50; 	//max calculation time before restult is returned (in sec)
 		outputpath_full = "/tmp/features.txt";
 		this->return_only_best_gp = false;
-		// this->base_frame_id = "/base_link";
 		graspval_th = 70;					//treshold if grasp hypothesis should be returned (in function - so program internal) (for top result of one loop run)
 		graspval_top = 119;
 		graspval_max_diff_for_pub = 80;		//if the value of grasps is more than graspval_max_diff_for_pub lower than optimal value graspval_top, nothing gets published (for top result of one whole roll run)
@@ -391,13 +390,12 @@ void CCalc_Grasppoints::loop_control(pcl::PointCloud<pcl::PointXYZ> pcl_cloud_in
 	timedif = difftime (end,start);
 	cout << "\n Gesamtzeit fuer Loop: " << timedif << endl;
 
-    if(success)	// ActionServer: return grasp representation (overall best grasp)
-    {
-        result_.graspOutput = this->gp_result;
-        ROS_INFO_STREAM("Succeeded:\n" << this->gp_result);
-        // set the action state to succeeded
-        as_.setSucceeded(result_);
-    }
+	if(success)	// ActionServer: return grasp representation (overall best grasp)
+	{
+		result_.graspOutput = this->gp_result;
+		ROS_INFO_STREAM("Succeeded:\n" << this->gp_result);
+		as_.setSucceeded(result_);
+	}
 }
 
 
@@ -1239,7 +1237,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 	    			break;
 	    		 }
 	    case 4 : {  // draw grasp approach direction (black arrow)
-                			(*marker).header.frame_id = this->base_frame_id;
+					(*marker).header.frame_id = this->base_frame_id;
 					(*marker).id = fix_marker_id_gripper_appr_dir;
 					(*marker).type = visualization_msgs::Marker::ARROW;
 					(*marker).action = visualization_msgs::Marker::ADD;
@@ -1257,7 +1255,7 @@ void CCalc_Grasppoints::grasp_area_to_marker(visualization_msgs::Marker *marker,
 					(*marker).lifetime = ros::Duration(3);
 					tf::Vector3 marker_axis(0, 1, 0);
 					tf::Quaternion qt(marker_axis, PI/2);
-					geometry_msgs::Quaternion quat_msg;;
+					geometry_msgs::Quaternion quat_msg;
 					tf::quaternionTFToMsg( (this->quat_tf_to_tf_help)*qt, quat_msg);
 					(*marker).pose.orientation = quat_msg;
 					(*marker).lifetime = ros::Duration();
