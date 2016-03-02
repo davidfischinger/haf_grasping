@@ -63,7 +63,7 @@
 #include <pcl_ros/point_cloud.h>
 #include "pcl_ros/transforms.h"
 #include "pcl_ros/publisher.h"
-#include "/usr/include/pcl-1.7/pcl/io/io.h"
+#include "pcl/io/io.h"
 #include "pcl/point_types.h"
 #include "pcl/point_cloud.h"
 #include "pcl/registration/ia_ransac.h"
