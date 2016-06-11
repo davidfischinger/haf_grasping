@@ -1386,9 +1386,9 @@ void CCalc_Grasppoints::transform_gp_in_wcs_and_publish(int id_row_top_all, int 
         this->gp_result.graspPoint1.x = gp1_wcs[0];
         this->gp_result.graspPoint1.y = gp1_wcs[1];
         this->gp_result.graspPoint1.z = gp1_wcs[2];
-        this->gp_result.graspPoint1.x = gp2_wcs[0];
-        this->gp_result.graspPoint1.y = gp2_wcs[1];
-        this->gp_result.graspPoint1.z = gp2_wcs[2];
+        this->gp_result.graspPoint2.x = gp2_wcs[0];
+        this->gp_result.graspPoint2.y = gp2_wcs[1];
+        this->gp_result.graspPoint2.z = gp2_wcs[2];
         this->gp_result.averagedGraspPoint.x = (gp1_wcs[0]+gp2_wcs[0])/2.0;
         this->gp_result.averagedGraspPoint.y = (gp1_wcs[1]+gp2_wcs[1])/2.0;
         this->gp_result.averagedGraspPoint.z = (gp1_wcs[2]+gp2_wcs[2])/2.0;
