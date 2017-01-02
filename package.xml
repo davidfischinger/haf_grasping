@@ -4,7 +4,7 @@
   <version>1.0.0</version>
   <description>The haf_grasping package: calculates grasps for a given point cloud using Height Accumulated Features (HAF)</description>
 
-  <maintainer email="fischinger@acin.tuwien.ac.at">David Fischinger</maintainer>
+  <maintainer email="david.fischinger@gmail.com">David Fischinger</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -14,7 +14,7 @@
 
   <url type="website">http://wiki.ros.org/haf_grasping</url>
 
-  <author email="fischinger@acin.tuwien.ac.at">David Fischinger</author>
+  <author email="david.fischinger@gmail.com">David Fischinger</author>
 
 
   <!-- The *_depend tags are used to specify dependencies -->
