@@ -36,7 +36,7 @@
 #define WIDTH 15
 
 using namespace std;
-using namespace cv;
+//using namespace cv;
 
 
 CIntImage_to_Featurevec::CIntImage_to_Featurevec(){
