@@ -9,7 +9,7 @@
 #define CHAARFEATURE_H_
 
 #include <vector>
-#include <opencv/cv.h>
+#include <opencv2/opencv.hpp>
 using namespace std;
 
 class CHaarFeature

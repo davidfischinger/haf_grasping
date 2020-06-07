@@ -83,6 +83,9 @@
 #include <haf_grasping/CalcGraspPointsServerAction.h>
 
 
+
+//#include <opencv/cv.h>
+
 #include <CIntImage_to_Featurevec.h>
 
 //new HEIGHT and WIDTH have to be next higher even number of the up-rounded square root of (HEIGHT*HEIGHT+WIDTH*WIDTH)
@@ -99,7 +102,7 @@
 
 
 using namespace std;
-using namespace cv;
+//using namespace cv;
 
 class CCalc_Grasppoints
 {
@@ -573,8 +576,8 @@ void CCalc_Grasppoints::publish_transformed_pcl_cloud(int roll, int tilt, pcl::P
 //calculates integral image of heights grid
 void CCalc_Grasppoints::calc_intimage(int roll, int tilt)
 {
-    Mat heightsIntegral;
-    heightsIntegral = Mat(HEIGHT+1, WIDTH+1, CV_64FC1);
+    cv::Mat heightsIntegral;
+    heightsIntegral = cv::Mat(HEIGHT+1, WIDTH+1, CV_64FC1);
 	//cout << "\n print integral height matrix on screen\n";
 
     double *TempHeights = (double *)malloc(HEIGHT * WIDTH * sizeof(double));
@@ -587,7 +590,7 @@ void CCalc_Grasppoints::calc_intimage(int roll, int tilt)
     		k++;
     	}
 
-    Mat const cvheightsmat = Mat(HEIGHT, WIDTH, CV_64FC1, TempHeights);
+    cv::Mat const cvheightsmat = cv::Mat(HEIGHT, WIDTH, CV_64FC1, TempHeights);
 	//Mat const cvheightsmat = Mat(HEIGHT, WIDTH, CV_64FC1, this->heightsgridroll[roll][tilt]);
 	integral(cvheightsmat, heightsIntegral,CV_64FC1);
 

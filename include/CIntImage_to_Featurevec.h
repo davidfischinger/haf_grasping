@@ -41,14 +41,14 @@
 
 //#include "CIntegralImage.cpp"
 #include <time.h>
-#include <opencv/cv.h>
+//#include <opencv/cv.h>
 #include <CHaarFeature.h>
 
 #define HEIGHTFEATURES 15
 #define WIDTHFEATURES 15
 
 using namespace std;
-using namespace cv;
+//using namespace cv;
 
 
 
